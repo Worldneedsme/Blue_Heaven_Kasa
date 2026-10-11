@@ -11,3 +11,4 @@ araclar/*.zip
 # Taslak ve yerel ayarlar
 tasarim/
 .claude/
+src/core/excel.bundle.js

@@ -1,7 +1,7 @@
 {
   "name": "blue-heaven-kasa",
   "productName": "Blue Heaven Kasa",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Blue Heaven Apart resepsiyon kasa programı (çevrimdışı)",
   "author": "Blue Heaven Apart",
   "main": "main.js",
@@ -10,17 +10,20 @@
     "start": "electron .",
     "dev": "node dev/server.js",
     "test": "node test/smoke.js",
-    "dist:win": "electron-builder --win nsis --x64",
-    "release:win": "electron-builder --win nsis --x64 --publish always"
+    "dist:win": "npm run bundle && electron-builder --win nsis --x64 && node tools/check-pack.js",
+    "release:win": "npm run bundle && electron-builder --win nsis --x64 --publish never && node tools/check-pack.js && electron-builder --win nsis --x64 --prepackaged dist/win-unpacked --publish always",
+    "check:pack": "node tools/check-pack.js",
+    "bundle": "esbuild src/core/excel.js --bundle --platform=node --target=node20 --outfile=src/core/excel.bundle.js --log-level=warning"
   },
   "dependencies": {
     "electron-updater": "6.3.9",
-    "exceljs": "4.4.0",
     "sql.js": "1.12.0"
   },
   "devDependencies": {
     "electron": "33.2.1",
-    "electron-builder": "25.1.8"
+    "electron-builder": "25.1.8",
+    "esbuild": "0.24.0",
+    "exceljs": "4.4.0"
   },
   "build": {
     "appId": "com.blueheaven.kasa",
@@ -36,8 +39,7 @@
       "!node_modules/sql.js/.devcontainer/**",
       "!node_modules/sql.js/*.md",
       "!node_modules/sql.js/logo.svg",
-      "!node_modules/exceljs/dist/**",
-      "!node_modules/exceljs/*.md"
+      "!src/core/excel.js"
     ],
     "directories": {
       "output": "dist",

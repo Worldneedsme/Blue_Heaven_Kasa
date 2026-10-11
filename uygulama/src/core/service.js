@@ -30,6 +30,9 @@ const PIN_RE = /^\d{4,12}$/;
 const nextDate = k => { const [y, m, d] = k.split('-').map(Number); return dkey(new Date(y, m - 1, d + 1)); };
 const ROOM_RE = /^[1-5]0[1-8]$/;
 
+// Excel kodu paketlenirken tek dosyaya derlenir (excel.bundle.js); geliştirmede kaynak dosya kullanılır.
+const loadExcel = () => { try { return require('./excel.bundle.js'); } catch (e) { if (e.code !== 'MODULE_NOT_FOUND') throw e; return require('./excel'); } };
+
 class UserError extends Error {}
 const fail = msg => { throw new UserError(msg); };
 const num = (v, name, { min = 0, allowZero = true } = {}) => {
@@ -411,7 +414,7 @@ class Service {
   // Gün kapatılınca o günün ve ayın Excel raporu raporlar klasörüne kendiliğinden yazılır (hata olursa gün sonu yine tamamlanır).
   autoExport(date) {
     if (!this.reportsDir) return Promise.resolve();
-    const excel = require('./excel');
+    const excel = loadExcel();
     return excel.dayReport(this, date, this.reportsDir)
       .then(() => excel.monthReport(this, date.slice(0, 7), this.reportsDir))
       .catch(e => this.log(e));
@@ -420,13 +423,13 @@ class Service {
     this.requireToken(token);
     if (!this.reportsDir) fail('Raporlar klasörü ayarlı değil.');
     if (!this.s.get('SELECT date FROM days WHERE date=?', [date])) fail('Gün bulunamadı.');
-    return { file: await require('./excel').dayReport(this, date, this.reportsDir) };
+    return { file: await loadExcel().dayReport(this, date, this.reportsDir) };
   }
   async exportMonth({ token, month }) {
     this.requireToken(token);
     if (!this.reportsDir) fail('Raporlar klasörü ayarlı değil.');
     if (!/^\d{4}-\d{2}$/.test(String(month || ''))) fail('Ay geçersiz.');
-    return { file: await require('./excel').monthReport(this, month, this.reportsDir) };
+    return { file: await loadExcel().monthReport(this, month, this.reportsDir) };
   }
   listReports({ token }) {
     this.requireToken(token);
