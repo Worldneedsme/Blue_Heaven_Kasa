@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'">
+<title>Blue Heaven Kasa — Müdür</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .gate{min-height:80vh;display:flex;align-items:center;justify-content:center;padding:16px}
+  .gate .box{width:min(420px,100%)}
+  .gate input{height:52px;border:1px solid var(--line);border-radius:10px;font-size:26px;text-align:center;letter-spacing:8px;width:100%}
+  .ro-badge{font-size:12px;background:#ece9f8;color:var(--purple);border-radius:999px;padding:3px 10px;font-weight:600}
+  .files a{color:var(--blue);font-weight:600;text-decoration:none}
+  .files a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+
+<div class="gate hidden" id="gPair"><div class="box panel">
+  <img class="logo" src="logo.png" alt="Hotel Blue Heaven" style="height:56px;margin:0 auto">
+  <h3 style="text-align:center">Bu bilgisayarı eşleştirin</h3>
+  <span style="color:var(--muted);font-size:14px">Resepsiyondaki kasa programında <b>Ayarlar → Müdür bilgisayarından erişim → Yeni cihaz eşleştir</b>’e basın ve ekranda çıkan 6 haneli kodu buraya yazın. Bu işlem bir kez yapılır.</span>
+  <input id="pairCode" inputmode="numeric" autocomplete="off" maxlength="6">
+  <div class="pinerr" id="pairErr"></div>
+  <button class="save" id="pairOk" style="width:100%">Eşleştir</button>
+</div></div>
+
+<div class="gate hidden" id="gPin"><div class="box panel">
+  <img class="logo" src="logo.png" alt="Hotel Blue Heaven" style="height:56px;margin:0 auto">
+  <h3 style="text-align:center">🔒 Şifreyi girin</h3>
+  <input id="pin" type="password" inputmode="numeric" autocomplete="off">
+  <div class="pinerr" id="pinErr"></div>
+  <button class="save" id="pinOk" style="width:100%">Aç</button>
+</div></div>
+
+<div class="wrap hidden" id="main">
+  <header>
+    <img class="logo" src="logo.png" alt="Hotel Blue Heaven">
+    <div class="brand">Kasa <span class="ro-badge">Müdür ekranı · sadece görüntüleme</span><small id="today"></small><span class="saved" id="upd"></span></div>
+    <div class="bal">
+      <div><span class="k">Kasa TL</span><span class="v" id="bTL"></span></div>
+      <div><span class="k">Kasa €</span><span class="v" id="bEUR"></span></div>
+      <div><span class="k">Kasa $</span><span class="v" id="bUSD"></span></div>
+      <div><span class="k">Kasa £</span><span class="v" id="bGBP"></span></div>
+      <div class="card"><span class="k">Bugün kart</span><span class="v" id="bCARD"></span></div>
+    </div>
+    <button class="hbtn" id="lockBtn">🔒 Kilitle</button>
+  </header>
+
+  <div class="panel">
+    <div class="tabs" id="tabs">
+      <button data-t="bugun" class="on">Bugün</button>
+      <button data-t="rapor">📊 Rapor</button>
+      <button data-t="gecmis">📅 Geçmiş Günler</button>
+      <button data-t="excel">📄 Excel Raporları</button>
+    </div>
+
+    <div data-v="bugun">
+      <table><thead><tr><th>Saat</th><th>Tür</th><th>Oda</th><th>Açıklama</th><th class="n">TL</th><th class="n">€</th><th class="n">$</th><th class="n">£</th><th class="n">Kart TL</th></tr></thead><tbody id="tx"></tbody></table>
+      <h3 style="margin:22px 0 10px;font-size:16px">Açık oda hesapları</h3>
+      <div id="accs"></div>
+    </div>
+
+    <div data-v="rapor" class="hidden">
+      <div class="rhead" style="margin-bottom:12px"><h2 style="font-size:17px">Rapor <span id="rLabel" style="font-weight:400;color:var(--muted);font-size:14px"></span></h2>
+        <div class="seg" id="rPer"><button data-p="day" class="on">Açık gün</button><button data-p="month">Bu ay</button><button data-p="prevmonth">Geçen ay</button></div></div>
+      <div class="tiles" id="rTiles"></div>
+      <div class="panel hidden" id="rDailyP" style="margin-top:14px"><h3>Günlük satış (€ karşılığı)</h3><div id="rDaily"></div></div>
+      <div class="cols" style="margin-top:14px">
+        <div class="panel"><h3>Kategoriye göre satış</h3><div class="bars" id="rCat"></div></div>
+        <div class="panel"><h3>Ödeme şekli</h3><div id="rPay"></div></div>
+      </div>
+      <div class="cols" style="margin-top:14px">
+        <div class="panel"><h3>En çok satanlar</h3><div class="bars" id="rProd"></div></div>
+        <div class="panel"><h3>Giderler</h3><div class="bars" id="rGider"></div></div>
+      </div>
+      <div class="panel" style="margin-top:14px"><h3>Para bozma</h3><div id="rDx"></div></div>
+    </div>
+
+    <div data-v="gecmis" class="hidden">
+      <div class="hnav"><button class="hbtn" id="hOlder">◀</button><select id="hSel"></select><button class="hbtn" id="hNewer">▶</button></div>
+      <div id="hBody"></div>
+    </div>
+
+    <div data-v="excel" class="hidden">
+      <div class="hint" style="margin:0 0 12px">Her gün sonunda o günün raporu ve ayın raporu kendiliğinden oluşur. Dosyaya tıklayıp indirin, Excel’de açıp yazdırabilirsiniz.</div>
+      <table class="files"><thead><tr><th>Dosya</th><th class="n">Oluşturma</th><th class="n">Boyut</th></tr></thead><tbody id="files"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="mudur.js"></script>
+</body>
+</html>

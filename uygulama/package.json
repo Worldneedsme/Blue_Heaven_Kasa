@@ -1,7 +1,7 @@
 {
   "name": "blue-heaven-kasa",
   "productName": "Blue Heaven Kasa",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Blue Heaven Apart resepsiyon kasa programı (çevrimdışı)",
   "author": "Blue Heaven Apart",
   "main": "main.js",
@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "electron-updater": "6.3.9",
+    "exceljs": "4.4.0",
     "sql.js": "1.12.0"
   },
   "devDependencies": {
@@ -34,7 +35,9 @@
       "!node_modules/sql.js/dist/worker.*",
       "!node_modules/sql.js/.devcontainer/**",
       "!node_modules/sql.js/*.md",
-      "!node_modules/sql.js/logo.svg"
+      "!node_modules/sql.js/logo.svg",
+      "!node_modules/exceljs/dist/**",
+      "!node_modules/exceljs/*.md"
     ],
     "directories": {
       "output": "dist",

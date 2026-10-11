@@ -8,6 +8,7 @@ const { Store } = require('../src/core/db');
 const { Service } = require('../src/core/service');
 const { createBackup } = require('../src/core/backup');
 const { makeRouter } = require('../src/core/router');
+const { createLanServer } = require('../src/core/lanserver');
 
 const PORT = Number(process.env.PORT || 8766);
 const root = path.join(__dirname, '..', 'src', 'renderer');
@@ -17,16 +18,20 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=
 (async () => {
   const dbFile = path.join(dataDir, 'kasa.db');
   const store = await new Store(dbFile).open();
-  const svc = new Service(store, createBackup({ dbFile, primaryDir: path.join(dataDir, 'yedekler'), documentsDir: path.join(dataDir, 'Belgeler') }), { version: require('../package.json').version + '-dev' });
+  const svc = new Service(store, createBackup({ dbFile, primaryDir: path.join(dataDir, 'yedekler'), documentsDir: path.join(dataDir, 'Belgeler') }), { version: require('../package.json').version + '-dev', reportsDir: path.join(dataDir, 'Raporlar') });
   const call = makeRouter(svc);
+  // Geliştirmede müdür sayfası her zaman 8767'de açık
+  const lan = createLanServer({ svc, staticDir: root, log: console.error });
+  lan.apply({ enabled: true, port: 8767 });
+  svc.lanInfo = () => ({ running: true, addresses: ['http://localhost:8767'] });
 
   http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/api') {
       let body = '';
       req.on('data', c => { body += c; });
-      req.on('end', () => {
+      req.on('end', async () => {
         let out;
-        try { const { method, arg } = JSON.parse(body); out = call(method, arg); } catch (e) { out = { ok: false, error: e.message }; }
+        try { const { method, arg } = JSON.parse(body); out = await call(method, arg); } catch (e) { out = { ok: false, error: e.message }; }
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify(out));
       });

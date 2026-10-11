@@ -10,6 +10,7 @@ const { createBackup } = require('../src/core/backup');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bhkasa-'));
 const dbFile = path.join(dir, 'kasa.db');
+const reportsDir = path.join(dir, 'Raporlar');
 const mkBackup = () => createBackup({ dbFile, primaryDir: path.join(dir, 'yedekler'), documentsDir: path.join(dir, 'Belgeler') });
 let step = 0;
 const ok = (name) => console.log(`  ✓ ${++step}. ${name}`);
@@ -17,7 +18,7 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
 
 (async () => {
   let store = await new Store(dbFile).open();
-  let svc = new Service(store, mkBackup());
+  let svc = new Service(store, mkBackup(), { reportsDir, log: e => { throw e; } });
   const P = name => svc.getState().products.find(p => p.name === name);
 
   assert.ok(svc.getState().setupNeeded); ok('ilk açılışta kurulum isteniyor');
@@ -147,7 +148,7 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   // Kalıcılık: dosyadan yeniden aç
   const before = JSON.stringify(svc.getState().balances);
   store = await new Store(dbFile).open();
-  svc = new Service(store, mkBackup());
+  svc = new Service(store, mkBackup(), { reportsDir, log: e => { throw e; } });
   assert.strictEqual(JSON.stringify(svc.getState().balances), before); ok('diskten yeniden açınca her şey yerinde');
 
   // Yedek + geri yükleme
@@ -175,7 +176,7 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   store.run("UPDATE sale_items SET category=(SELECT category FROM products p WHERE p.id=sale_items.product_id)");
   store.run("UPDATE settings SET value=? WHERE key='categories'", [JSON.stringify(['Hizmetler', 'Masaj', 'İçecek & Yiyecek', 'Hediyelik & Market'])]);
   store.run("DELETE FROM settings WHERE key='migrations'");
-  svc = new Service(store, mkBackup());
+  svc = new Service(store, mkBackup(), { reportsDir, log: e => { throw e; } });
   const cat = n => svc.getState().products.find(p => p.name === n).category;
   assert.strictEqual(cat('Coke'), 'Market Resepsiyon'); assert.strictEqual(cat('Kartpostal + Pul'), 'Market Resepsiyon');
   assert.strictEqual(cat('Magnet'), 'Hediyelik'); assert.strictEqual(cat('Çamaşır (Laundry)'), 'Laundry');
@@ -196,6 +197,57 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   assert.strictEqual(st.products.length, prodCount); assert.strictEqual(st.rates.EUR.satis, 56);
   assert.ok(svc.getSettings({ token: svc.verifyPin('5555').token }).backups.length > nBk);
   ok('verileri sıfırla → kurulum ekranı, ürünler ve kurlar korundu, önce yedek alındı');
+
+  // Excel raporları: gün sonunda gün + ay dosyası kendiliğinden, elle de alınabilir
+  svc.closeDay({ counts: svc.getState().balances });
+  await svc.autoExport(svc.listClosedDays()[0]);
+  const tX = svc.verifyPin('5555').token;
+  const ExcelJS = require('exceljs');
+  let lr = svc.listReports({ token: tX });
+  assert.ok(lr.files.some(f => f.name.startsWith('Gün sonu - ')) && lr.files.some(f => f.name.startsWith('Aylık - ')), 'rapor dosyaları oluşmalı');
+  const dayFile = (await svc.exportDay({ token: tX, date: svc.getState().day.date })).file;
+  const wbx = new ExcelJS.Workbook(); await wbx.xlsx.readFile(dayFile);
+  assert.deepStrictEqual(wbx.worksheets.map(w => w.name), ['Özet', 'İşlemler']);
+  assert.strictEqual(wbx.getWorksheet('Özet').getCell('A1').value, 'Blue Heaven Apart — Gün sonu raporu');
+  const mFile = (await svc.exportMonth({ token: tX, month: svc.getState().day.date.slice(0, 7) })).file;
+  const wbm = new ExcelJS.Workbook(); await wbm.xlsx.readFile(mFile);
+  assert.deepStrictEqual(wbm.worksheets.map(w => w.name), ['Günlük', 'Özet', 'Ürünler']);
+  await assert.rejects(svc.exportDay({ token: 'x', date: '2026-01-01' }), /şifre/);
+  ok(`Excel raporları (${svc.listReports({ token: tX }).files.length} dosya: gün sonu + aylık)`);
+
+  // Müdür sayfası (yerel ağ): eşleştirme, şifre, sadece okuma, Excel indirme, hatalı denemede kilit
+  {
+    const { createLanServer } = require('../src/core/lanserver');
+    const lan = createLanServer({ svc, staticDir: path.join(__dirname, '..', 'src', 'renderer') });
+    lan.apply({ enabled: true, port: 18767 });
+    await new Promise(r => setTimeout(r, 200));
+    let cookie = '';
+    const api = async (method, arg, tok) => {
+      const r = await fetch('http://127.0.0.1:18767/api', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ method, arg, token: tok }) });
+      const sc = r.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
+      return r.json();
+    };
+    assert.ok((await api('viewState')).unpaired);
+    const tk = svc.verifyPin('5555').token, code = svc.lanNewCode({ token: tk }).code.code;
+    assert.ok(!(await api('pair', '000000')).ok);
+    assert.ok((await api('pair', code)).ok); assert.ok(cookie.startsWith('bhk_cihaz='));
+    assert.ok(!(await api('pair', code)).ok, 'kod tek kullanımlık olmalı');
+    assert.ok((await api('viewState')).needPin);
+    const mt = (await api('verifyPin', '5555')).data.token;
+    const vs = await api('viewState', null, mt); assert.ok(vs.ok && vs.data.balances);
+    assert.ok((await api('report', { period: 'month' }, mt)).ok);
+    assert.match((await api('addExpense', { category: 'Diğer', currency: 'TL', amount: 1 }, mt)).error, /yapılamaz/);
+    assert.match((await api('resetAll', {}, mt)).error, /yapılamaz/);
+    const fname = (await api('listReports', null, mt)).data.files[0].name;
+    const dl = await fetch(`http://127.0.0.1:18767/excel?f=${encodeURIComponent(fname)}&t=${mt}`, { headers: { cookie } });
+    assert.strictEqual(dl.status, 200);
+    assert.strictEqual((await fetch(`http://127.0.0.1:18767/excel?f=${encodeURIComponent(fname)}&t=${mt}`)).status, 401);
+    assert.strictEqual((await fetch(`http://127.0.0.1:18767/excel?f=..%2Fkasa.db&t=${mt}`, { headers: { cookie } })).status, 404);
+    for (let i = 0; i < 5; i++) await api('verifyPin', '0000');
+    assert.match((await api('verifyPin', '5555')).error, /15 dakika/);
+    lan.close();
+    ok('müdür sayfası: eşleştirme, şifre, sadece okuma, Excel indirme, kilit');
+  }
 
   // Arayüz: ana ekrandaki kutular dengeli açılıp kapanmalı (fazla/eksik </div> düzeni bozar)
   const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'index.html'), 'utf8');

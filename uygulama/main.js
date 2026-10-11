@@ -1,12 +1,13 @@
 'use strict';
 // Electron ana süreci: pencereyi açar, veritabanını yükler, arayüz çağrılarını servise iletir.
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { Store } = require('./src/core/db');
 const { Service } = require('./src/core/service');
 const { createBackup } = require('./src/core/backup');
 const { makeRouter } = require('./src/core/router');
+const { createLanServer } = require('./src/core/lanserver');
 
 let win = null;
 
@@ -32,7 +33,7 @@ if (!app.requestSingleInstanceLock()) {
     try {
       const store = await new Store(dbFile).open();
       const backup = createBackup({ dbFile, primaryDir: path.join(dataDir, 'yedekler'), documentsDir: app.getPath('documents') });
-      svc = new Service(store, backup, { version: app.getVersion() });
+      svc = new Service(store, backup, { version: app.getVersion(), reportsDir: path.join(app.getPath('documents'), 'BlueHeavenKasa-Raporlar'), log });
       try { svc.makeBackup('acilis'); } catch (e) { log(e); }
     } catch (e) {
       log(e);
@@ -41,8 +42,17 @@ if (!app.requestSingleInstanceLock()) {
       return;
     }
 
+    // Müdür sayfası (yerel ağ): Ayarlar'dan açılıp kapatılır
+    if (!SMOKE) {
+      const lan = createLanServer({ svc, staticDir: path.join(__dirname, 'src', 'renderer'), log });
+      svc.onLanChange = cfg => lan.apply(cfg);
+      svc.lanInfo = () => ({ running: lan.running(), addresses: lan.addresses() });
+      lan.apply(svc.lanConfig());
+    }
+
     const call = makeRouter(svc, log);
     ipcMain.handle('api', (_e, method, arg) => call(method, arg));
+    ipcMain.handle('openReports', () => { const dir = path.join(app.getPath('documents'), 'BlueHeavenKasa-Raporlar'); fs.mkdirSync(dir, { recursive: true }); return shell.openPath(dir); });
     ipcMain.handle('pickDir', async () => {
       const r = await dialog.showOpenDialog(win, { title: 'İkinci yedek klasörünü seçin', properties: ['openDirectory', 'createDirectory'] });
       return r.canceled ? null : r.filePaths[0];

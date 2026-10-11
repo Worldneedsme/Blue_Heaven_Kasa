@@ -472,6 +472,17 @@ $('repClose').onclick = async () => { $('rep').classList.remove('on'); await loc
 $('setClose').onclick = async () => { $('set').classList.remove('on'); await lockOut(); S = await api('getState'); render(); };
 $('rPer').onclick = e => { const p = e.target.dataset.p; if (p) openReport(p); };
 
+let repPer = 'day', repLabel = null;
+$('repXlsx').onclick = async () => {
+  try {
+    const r = repPer === 'day' ? await api('exportDay', { token, date: S.day.date }) : await api('exportMonth', { token, month: repLabel });
+    const name = r.file.split(/[\\/]/).pop();
+    $('repXlsxInfo').innerHTML = `✓ Kaydedildi: <b>${esc(name)}</b> — Belgeler › BlueHeavenKasa-Raporlar. Gün sonlarında günün ve ayın raporu buraya kendiliğinden kaydedilir.`;
+    toast('Excel raporu kaydedildi');
+  } catch (e) { toast(e.message, true); }
+};
+$('repDir').onclick = () => { if (window.kasa && window.kasa.openReports) window.kasa.openReports(); else toast('Klasör sadece kurulu programda açılır', true); };
+
 function barsHTML(obj, unit) {
   const rows = Object.entries(obj).map(([k, v]) => typeof v === 'number' ? [k, v, null] : [k, v.e, v.q]).sort((a, b) => b[1] - a[1]).slice(0, 12);
   const max = Math.max(1, ...rows.map(r => r[1]));
@@ -479,6 +490,8 @@ function barsHTML(obj, unit) {
 }
 async function openReport(per) {
   let A; try { A = await api('report', { token, period: per }); } catch (e) { toast(e.message, true); return; }
+  repPer = per; repLabel = A.label; $('repXlsxInfo').textContent = '';
+  $('repXlsx').textContent = per === 'day' ? '📄 Günü Excel’e kaydet' : '📄 Ayı Excel’e kaydet';
   [...$('rPer').children].forEach(b => b.classList.toggle('on', b.dataset.p === per));
   const monthName = k => { const [y, m] = k.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }); };
   $('rLabel').textContent = per === 'day' ? '— ' + longDate(S.day.date) : '— ' + monthName(A.label) + ` (${A.days} gün)`;
@@ -553,8 +566,34 @@ async function refreshUpd(force) {
 $('updCheck').onclick = () => refreshUpd(true);
 $('updInstall').onclick = async () => { if (await askConfirm('Program yeniden başlatılsın mı?', 'Yeni sürüm kurulup program tekrar açılacak. Kaydedilmiş işlemler korunur.', 'Yeniden başlat')) window.kasa.installUpdate(); };
 
+// --- Müdür bilgisayarından erişim ---
+let LAN = null;
+async function loadLan() { try { LAN = await api('lanStatus', { token }); renderLan(); } catch (e) { $('lanBody').innerHTML = `<p style="color:var(--red)">${esc(e.message)}</p>`; } }
+function renderLan() {
+  const L = LAN, on = L.enabled;
+  const addr = L.running && L.addresses.length ? L.addresses.map(a => `<b style="font-size:16px">${esc(a)}</b>`).join(' &nbsp;veya&nbsp; ') : '';
+  $('lanBody').innerHTML = `
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <span>Durum: <b style="color:${on ? 'var(--green)' : 'var(--muted)'}">${on ? (L.running ? 'Açık' : 'Açılıyor / port kullanımda') : 'Kapalı'}</b></span>
+      <button class="hbtn mini" id="lanToggle">${on ? 'Kapat' : 'Aç'}</button>
+    </div>
+    ${on ? `<div style="margin-bottom:12px">Müdür bilgisayarında Chrome’a şu adresi yazın: ${addr || '<i>adres bulunamadı (ağ bağlantısını kontrol edin)</i>'}</div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <button class="hbtn main mini" id="lanCode">Yeni cihaz eşleştir</button>
+      ${L.code ? `<span>Eşleştirme kodu: <b style="font-size:24px;letter-spacing:4px">${esc(L.code.code)}</b> <span class="hint">(${Math.max(0, Math.round((L.code.expires - Date.now()) / 60000))} dk geçerli, tek kullanımlık)</span></span>` : ''}
+    </div>
+    <table><thead><tr><th>Eşleşmiş cihaz</th><th>Eşleşme</th><th>Son erişim</th><th></th></tr></thead><tbody>
+      ${L.devices.length ? L.devices.map(d => `<tr><td>${esc(d.ip || '')}</td><td>${esc(d.created)}</td><td>${esc(d.lastSeen)}</td><td><button class="hbtn mini" data-rmdev="${esc(d.id)}">Kaldır</button></td></tr>`).join('') : '<tr><td colspan="4" style="color:var(--muted)">Henüz eşleşmiş cihaz yok.</td></tr>'}
+    </tbody></table>
+    <div class="hint" style="margin:8px 0 0">İlk açılışta Windows “ağ erişimine izin verilsin mi” diye sorarsa <b>İzin ver</b>’i seçin.</div>` : ''}`;
+  if ($('lanToggle')) $('lanToggle').onclick = async () => { try { LAN = await api('lanSetEnabled', { token, enabled: !on }); setTimeout(loadLan, 600); renderLan(); } catch (e) { toast(e.message, true); } };
+  if ($('lanCode')) $('lanCode').onclick = async () => { try { LAN = await api('lanNewCode', { token }); renderLan(); } catch (e) { toast(e.message, true); } };
+  $('lanBody').querySelectorAll('[data-rmdev]').forEach(b => { b.onclick = async () => { if (!await askConfirm('Cihaz kaldırılsın mı?', 'Bu cihaz tekrar girmek için yeniden eşleştirilmesi gerekecek.', 'Kaldır')) return; try { LAN = await api('lanRemoveDevice', { token, id: b.dataset.rmdev }); renderLan(); } catch (e) { toast(e.message, true); } }; });
+}
+
 function renderSettings() {
   refreshUpd(false);
+  loadLan();
   $('verLbl').textContent = S && S.version ? 'Sürüm ' + S.version : '';
   $('setRates').innerHTML = ['EUR', 'USD', 'GBP'].map(c => `<tr><td><b>${SYM[c]}</b></td><td><input data-c="${c}" data-k="alis" type="number" step="0.01" value="${SET.rates[c].alis}"></td><td><input data-c="${c}" data-k="satis" type="number" step="0.01" value="${SET.rates[c].satis}"></td></tr>`).join('');
   $('setProds').innerHTML = SET.products.map(prodRow).join('') + prodRow({ category: SET.categories[0], currency: 'EUR', unit: 'adet', active: 1 });

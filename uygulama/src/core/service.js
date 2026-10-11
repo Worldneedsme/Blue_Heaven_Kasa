@@ -43,6 +43,8 @@ class Service {
     this.s = store;
     this.backup = backup;
     this.version = opts.version || '';
+    this.reportsDir = opts.reportsDir || null;
+    this.log = opts.log || (() => {});
     this.tokens = new Set();
     this.seed();
     this.migrate();
@@ -401,7 +403,93 @@ class Service {
       this.s.run('INSERT INTO days(date,opened_at,devir_tl,devir_eur,devir_usd,devir_gbp) VALUES(?,?,?,?,?,?)', [nd, nowStr(), c.TL, c.EUR, c.USD, c.GBP]);
     });
     this.makeBackup('gun-sonu');
+    this.autoExport(day.date);
     return this.getState();
+  }
+
+  // ---------- Excel raporları ----------
+  // Gün kapatılınca o günün ve ayın Excel raporu raporlar klasörüne kendiliğinden yazılır (hata olursa gün sonu yine tamamlanır).
+  autoExport(date) {
+    if (!this.reportsDir) return Promise.resolve();
+    const excel = require('./excel');
+    return excel.dayReport(this, date, this.reportsDir)
+      .then(() => excel.monthReport(this, date.slice(0, 7), this.reportsDir))
+      .catch(e => this.log(e));
+  }
+  async exportDay({ token, date }) {
+    this.requireToken(token);
+    if (!this.reportsDir) fail('Raporlar klasörü ayarlı değil.');
+    if (!this.s.get('SELECT date FROM days WHERE date=?', [date])) fail('Gün bulunamadı.');
+    return { file: await require('./excel').dayReport(this, date, this.reportsDir) };
+  }
+  async exportMonth({ token, month }) {
+    this.requireToken(token);
+    if (!this.reportsDir) fail('Raporlar klasörü ayarlı değil.');
+    if (!/^\d{4}-\d{2}$/.test(String(month || ''))) fail('Ay geçersiz.');
+    return { file: await require('./excel').monthReport(this, month, this.reportsDir) };
+  }
+  listReports({ token }) {
+    this.requireToken(token);
+    if (!this.reportsDir || !fs.existsSync(this.reportsDir)) return { dir: this.reportsDir, files: [] };
+    const files = fs.readdirSync(this.reportsDir).filter(f => f.endsWith('.xlsx') && !f.startsWith('~$'))
+      .map(f => ({ name: f, size: fs.statSync(path.join(this.reportsDir, f)).size, mtime: fs.statSync(path.join(this.reportsDir, f)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime);
+    return { dir: this.reportsDir, files };
+  }
+
+  // ---------- Müdür sayfası (yerel ağ) ----------
+  // Sayfaya sadece eşleştirilmiş cihazlar girebilir. Eşleştirme kodu resepsiyon ekranında (Ayarlar) üretilir, 10 dakika geçerlidir.
+  // Cihaz anahtarlarının sadece özeti saklanır.
+  lanConfig() { return { enabled: false, port: 8080, ...(this.setting('lan') || {}) }; }
+  lanStatus({ token }) {
+    this.requireToken(token);
+    const devices = (this.setting('lan_devices') || []).map(({ hash, ...d }) => d);
+    const code = this.pairCode && this.pairCode.expires > Date.now() ? { code: this.pairCode.code, expires: this.pairCode.expires } : null;
+    return { ...this.lanConfig(), devices, code, ...(this.lanInfo ? this.lanInfo() : { running: false, addresses: [] }) };
+  }
+  lanSetEnabled({ token, enabled }) {
+    this.requireToken(token);
+    this.s.tx(() => this.setSetting('lan', { ...this.lanConfig(), enabled: !!enabled }));
+    if (this.onLanChange) this.onLanChange(this.lanConfig());
+    return this.lanStatus({ token });
+  }
+  lanNewCode({ token }) {
+    this.requireToken(token);
+    this.pairCode = { code: String(crypto.randomInt(100000, 1000000)), expires: Date.now() + 10 * 60 * 1000 };
+    return this.lanStatus({ token });
+  }
+  lanRemoveDevice({ token, id }) {
+    this.requireToken(token);
+    this.s.tx(() => this.setSetting('lan_devices', (this.setting('lan_devices') || []).filter(d => d.id !== id)));
+    return this.lanStatus({ token });
+  }
+  // Sunucu tarafı (şifresiz, sadece lanserver kullanır)
+  lanPair(code, ip) {
+    if (!this.pairCode || this.pairCode.expires < Date.now() || String(code).trim() !== this.pairCode.code) return null;
+    this.pairCode = null;
+    const key = crypto.randomBytes(24).toString('hex');
+    const list = this.setting('lan_devices') || [];
+    const id = crypto.randomBytes(4).toString('hex');
+    list.push({ id, hash: crypto.createHash('sha256').update(key).digest('hex'), created: nowStr(), lastSeen: nowStr(), ip });
+    this.s.tx(() => this.setSetting('lan_devices', list));
+    return key;
+  }
+  lanCheckDevice(key, ip) {
+    if (!key) return false;
+    const h = crypto.createHash('sha256').update(String(key)).digest('hex');
+    const list = this.setting('lan_devices') || [];
+    const d = list.find(x => x.hash === h);
+    if (!d) return false;
+    const now = nowStr();
+    if (d.lastSeen.slice(0, 16) !== now.slice(0, 16) || d.ip !== ip) { d.lastSeen = now; d.ip = ip; this.s.tx(() => this.setSetting('lan_devices', list)); }
+    return true;
+  }
+  // Müdür sayfasına giden özet durum (sadece görüntüleme)
+  viewState() {
+    const st = this.getState();
+    if (st.setupNeeded) return { setupNeeded: true };
+    const { day, balances, cardToday, tx, accounts, rates, version, stale } = st;
+    return { day, balances, cardToday, tx, accounts, rates, version, stale };
   }
 
   // ---------- geçmiş ----------
@@ -443,9 +531,15 @@ class Service {
       let [y, m] = day.date.split('-').map(Number);
       if (period === 'prevmonth') { m -= 1; if (m === 0) { m = 12; y -= 1; } }
       const pre = `${y}-${pad(m)}`;
-      dates = this.s.all('SELECT date FROM days WHERE date LIKE ? ORDER BY date', [pre + '%']).map(r => r.date);
+      dates = this.monthDates(pre);
       label = pre;
     }
+    return this.aggregate(dates, label);
+  }
+  monthDates(ym) { return this.s.all('SELECT date FROM days WHERE date LIKE ? ORDER BY date', [ym + '%']).map(r => r.date); }
+
+  // Verilen günlerin rapor toplamları (ekrandaki rapor ve Excel dosyaları aynı hesabı kullanır)
+  aggregate(dates, label) {
     const A = { label, sale: 0, cnt: 0, cat: {}, prod: {}, pay: { EUR: 0, TL: 0, KART: 0, ODA: 0 }, dx: {}, gider: {}, giderTL: 0,
       owner: { TL: 0, TLOUT: 0, EURIN: 0, EUR: 0, USD: 0, GBP: 0 }, cardTL: 0, disc: 0, discN: 0, avans: 0, daily: {}, days: dates.length };
     if (!dates.length) return { ...A, openAccounts: 0 };

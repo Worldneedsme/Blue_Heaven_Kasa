@@ -231,9 +231,12 @@
     <div class="rhead" style="flex:1">
       <h2>Rapor <span id="rLabel" style="font-weight:400;color:var(--muted);font-size:15px"></span></h2>
       <div class="seg" id="rPer"><button data-p="day" class="on">Açık gün</button><button data-p="month">Bu ay</button><button data-p="prevmonth">Geçen ay</button></div>
+      <button class="hbtn" id="repXlsx">📄 Excel olarak kaydet</button>
+      <button class="hbtn" id="repDir">📂 Raporlar klasörü</button>
       <button class="hbtn" id="repClose">🔒 Kilitle ve kapat</button>
     </div>
   </header>
+  <div class="hint" id="repXlsxInfo" style="margin:0"></div>
   <div class="tiles" id="rTiles"></div>
   <div class="panel hidden" id="rDailyP"><h3>Günlük satış (€ karşılığı)</h3><div id="rDaily"></div></div>
   <div class="cols">
@@ -289,6 +292,11 @@
       <div class="hint" style="margin:0 0 10px">USB bellekte kök dizinde <b>KasaYedek</b> adlı bir klasör açarsanız, bellek takılıyken yedekler oraya da alınır.</div>
       <div style="max-height:260px;overflow:auto"><table><tbody id="bkList"></tbody></table></div>
     </div>
+  </div>
+  <div class="panel">
+    <h3>Müdür bilgisayarından erişim</h3>
+    <div class="hint" style="margin:0 0 12px">Açıkken müdür bilgisayarı aynı ağdan tarayıcıyla raporları, geçmiş günleri ve Excel raporlarını görebilir (sadece görüntüleme). Her cihaz bir kez eşleştirilir, her girişte rapor şifresi sorulur.</div>
+    <div id="lanBody"></div>
   </div>
   <div class="panel" style="border-color:#f1c9c2">
     <h3 style="color:var(--red)">Verileri sıfırla</h3>
