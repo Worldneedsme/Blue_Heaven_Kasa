@@ -164,3 +164,26 @@ kbd{font-family:inherit;font-size:12px;border:1px solid var(--line);border-botto
 .settings #setProds select[data-f=category]{min-width:170px}
 .settings #setProds select[data-f=currency]{min-width:64px}
 .settings #setProds select[data-f=unit]{min-width:90px}
+
+/* Cengiz Bey: getirdi / aldı grupları */
+.grp-box{border:1px solid var(--line);border-radius:12px;padding:8px 10px 10px;display:flex;flex-direction:column;gap:6px}
+.grp-box.in{background:#f2faf6;border-color:#cfe9dc}
+.grp-box.out{background:#fdf5f3;border-color:#f1d6d0}
+.grp-t{font-size:12px;font-weight:600}
+.grp-box.in .grp-t{color:var(--green)}
+.grp-box.out .grp-t{color:var(--red)}
+.grp-box .row{gap:8px}
+
+
+/* Oda hesabı: ödenen kalemler ve tahsilat seçimi */
+.acc tr.paid td{color:#a3a9b6;text-decoration:line-through}
+.acc tr.paid .paidtag{text-decoration:none;display:inline-block;color:var(--green);font-size:12px;font-weight:600}
+.pick input[type=checkbox]{width:18px;height:18px;cursor:pointer}
+.accSel{margin-top:8px;font-size:15px}
+
+/* Para bozma günlük özeti */
+.dxsum:empty{display:none}
+.dxsum{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+.dxsum h3{margin:0 0 8px;font-size:15px}
+.dxsum td{vertical-align:top;line-height:1.5}
+.dxnet{margin-top:8px;font-size:15px;text-align:right}

@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS accounts (
 CREATE TABLE IF NOT EXISTS account_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER NOT NULL, day TEXT NOT NULL, created_at TEXT NOT NULL,
   kind TEXT NOT NULL, description TEXT NOT NULL, currency TEXT NOT NULL, amount REAL NOT NULL,
-  tx_id INTEGER, void INTEGER NOT NULL DEFAULT 0
+  tx_id INTEGER, void INTEGER NOT NULL DEFAULT 0, paid_tx_id INTEGER
 );
 CREATE INDEX IF NOT EXISTS ix_acc_items ON account_items(account_id);
 `;
@@ -62,10 +62,17 @@ class Store {
     else this.db = new SQL.Database();
     this.db.run('PRAGMA foreign_keys = ON;');
     this.db.run(SCHEMA);
+    this.upgrade();
     const v = this.get("SELECT value FROM settings WHERE key='schema_version'");
     if (!v) this.run("INSERT INTO settings(key,value) VALUES('schema_version',?)", [String(SCHEMA_VERSION)]);
     this.persist();
     return this;
+  }
+
+  // Eski sürümlerden gelen veritabanlarına sonradan eklenen sütunlar
+  upgrade() {
+    const cols = this.all('PRAGMA table_info(account_items)').map(c => c.name);
+    if (!cols.includes('paid_tx_id')) this.db.run('ALTER TABLE account_items ADD COLUMN paid_tx_id INTEGER');
   }
 
   // Her değişiklikten sonra çağrılır: geçici dosyaya yaz → diske zorla → yerine taşı.
@@ -119,6 +126,7 @@ class Store {
     this.db.close();
     this.db = new this.SQL.Database(buffer);
     this.db.run(SCHEMA);
+    this.upgrade();
     this.persist();
   }
 }

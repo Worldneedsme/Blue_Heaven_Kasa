@@ -108,8 +108,40 @@ function render() {
   const st = $('stale');
   if (S.stale) { st.innerHTML = `⚠️ <b>${longDate(S.day.date)}</b> günü henüz kapatılmadı. Gün sonu yapılana kadar girilen işlemler bu güne yazılır. <button class="hbtn mini" id="staleEod">Gün sonunu yap</button>`; st.classList.remove('hidden'); $('staleEod').onclick = openEod; }
   else st.classList.add('hidden');
-  $('tx').innerHTML = S.tx.length ? S.tx.map(x => rowHTML(x, true)).join('') : '<tr class="emptyrow"><td colspan="10">Bu gün henüz işlem yok</td></tr>';
+  renderTx();
   renderAcc(); updSale(); dRate(true);
+}
+
+// İşlem listesi: Para Bozma sekmesinde sadece para bozma işlemleri görünür
+// Para Bozma sekmesindeki günlük özet: her para birimi için alınan/verilen ve net
+function renderDxSum() {
+  const T = {};
+  S.tx.filter(x => x.type === 'doviz' && !x.void && x.meta && x.meta.cur).forEach(x => {
+    const m = x.meta, t = T[m.cur] || (T[m.cur] = { alD: 0, alTL: 0, saD: 0, saTL: 0, n: 0 });
+    t.n++;
+    if (m.dir === 'alis') { t.alD += m.amount; t.alTL += m.tl; } else { t.saD += m.amount; t.saTL += m.tl; }
+  });
+  const curs = ['EUR', 'USD', 'GBP'].filter(c => T[c]);
+  if (!curs.length) { $('dxSum').innerHTML = ''; return; }
+  let netTL = 0;
+  const rows = curs.map(c => {
+    const t = T[c], s = SYM[c], nD = t.alD - t.saD, nT = t.saTL - t.alTL; netTL += nT;
+    const sign = v => (v > 0 ? '+' : v < 0 ? '−' : '') + fmt(Math.abs(v));
+    return `<tr><td><b>${s}</b></td>
+      <td class="n">${t.alD ? `${fmt(t.alD)} ${s} alındı<br><span class="neg">${fmt(t.alTL)} TL verildi</span>` : '<span class="dim">·</span>'}</td>
+      <td class="n">${t.saD ? `${fmt(t.saD)} ${s} verildi<br><span class="pos">${fmt(t.saTL)} TL alındı</span>` : '<span class="dim">·</span>'}</td>
+      <td class="n"><b class="${nD >= 0 ? 'pos' : 'neg'}">${sign(nD)} ${s}</b><br><span class="${nT >= 0 ? 'pos' : 'neg'}">${sign(nT)} TL</span></td>
+      <td class="n">${t.n}</td></tr>`;
+  }).join('');
+  $('dxSum').innerHTML = `<h3>Bugünün toplamı</h3><table><thead><tr><th></th><th class="n">Para bozma (döviz → TL)</th><th class="n">Ters bozma (TL → döviz)</th><th class="n">Kasaya net etki</th><th class="n">İşlem</th></tr></thead><tbody>${rows}</tbody></table>` +
+    (curs.length > 1 ? `<div class="dxnet">Toplam TL etkisi: <b class="${netTL >= 0 ? 'pos' : 'neg'}">${netTL >= 0 ? '+' : '−'}${fmt(Math.abs(netTL))} TL</b></div>` : '');
+}
+
+function renderTx() {
+  if (curTab === 'doviz') renderDxSum();
+  const onlyDx = curTab === 'doviz', rows = onlyDx ? S.tx.filter(x => x.type === 'doviz') : S.tx;
+  $('tx').innerHTML = rows.length ? rows.map(x => rowHTML(x, true)).join('')
+    : `<tr class="emptyrow"><td colspan="10">${onlyDx ? 'Bugün henüz para bozma yok' : 'Bu gün henüz işlem yok'}</td></tr>`;
 }
 
 /* ================= SEKMELER ================= */
@@ -121,6 +153,7 @@ $('tabs').onclick = e => {
   document.querySelectorAll('[data-form]').forEach(f => f.classList.toggle('hidden', f.dataset.form !== curTab));
   $('todayPanel').classList.toggle('hidden', curTab === 'gecmis' || curTab === 'hesap');
   if (curTab === 'gecmis') { hKey = null; renderHist(); }
+  if (S && S.tx) renderTx();
   if (curTab === 'satis') $('sProdQ').focus();
 };
 
@@ -278,6 +311,8 @@ async function saveExp() {
   const st = await act('addExpense', { category: $('gCat').value, desc: $('gDesc').value, currency: $('gCur').value, amount: $('gAmt').value }, 'Gider kaydedildi');
   if (st) { $('gAmt').value = ''; $('gDesc').value = ''; $('gCat').value = ''; }
 }
+// Sevgi Hanım'a ödeme neredeyse hep € ile yapılıyor; diğer giderler TL
+$('gCat').onchange = () => { $('gCur').value = $('gCat').value.startsWith('Masaj terapisti') ? 'EUR' : 'TL'; };
 $('gSave').onclick = saveExp; enterTo(['gDesc', 'gAmt'], saveExp);
 
 /* ================= CENGİZ BEY ================= */
@@ -285,6 +320,7 @@ async function saveOwner() {
   const st = await act('addOwner', { tl: $('cTL').value, eurIn: $('cEURIN').value, tlOut: $('cTLOUT').value, eur: $('cEUR').value, usd: $('cUSD').value, gbp: $('cGBP').value }, 'Kaydedildi');
   if (st) ['cTL', 'cEURIN', 'cTLOUT', 'cEUR', 'cUSD', 'cGBP'].forEach(k => { $(k).value = ''; });
 }
+$('cFx').onclick = () => { const show = $('cFxF').classList.contains('hidden'); $('cFxF').classList.toggle('hidden', !show); $('cFxF2').classList.toggle('hidden', !show); $('cFx').textContent = show ? '− Dolar / Sterlin' : '+ Dolar / Sterlin'; if (show) $('cUSD').focus(); };
 $('cSave').onclick = saveOwner; enterTo(['cTL', 'cEURIN', 'cTLOUT', 'cEUR', 'cUSD', 'cGBP'], saveOwner);
 
 /* ================= İPTAL ================= */
@@ -298,9 +334,9 @@ $('tx').onclick = async e => {
 function renderAcc() {
   const L = S.accounts || [];
   $('accCount').textContent = L.length || '';
-  $('accList').innerHTML = L.length ? L.map(a => `<div class="acc"><div class="ah"><span class="room">${esc(a.room)}</span><span class="since">${shortDate(a.opened_day)}’den beri · ${a.items.filter(i => i.kind !== 'not').length} kalem</span>${a.left_unpaid ? '<span class="badge-left">Çıktı, ödenmedi</span>' : ''}<span class="tot">${fmt(a.eurEq)} €<small>= ${fmt(a.tlEq)} TL</small></span></div>
-    <table><tbody>${a.items.map(i => `<tr><td style="width:120px;color:var(--muted)">${shortDate(i.day).slice(0, 5)} ${timeOf(i.created_at)}</td><td>${esc(i.description)}</td><td class="n">${i.kind === 'not' ? '' : fmt(i.amount) + ' ' + SYM[i.currency]}</td></tr>`).join('')}</tbody></table>
-    <div class="acts"><button class="hbtn main" data-close-acc="${a.id}">Hesabı kapat</button><button class="hbtn" data-fix="${a.id}">Düzeltme</button><button class="hbtn" data-move="${a.id}">Oda değiştir</button></div></div>`).join('')
+  $('accList').innerHTML = L.length ? L.map(a => `<div class="acc"><div class="ah"><span class="room">${esc(a.room)}</span><span class="since">${shortDate(a.opened_day)}’den beri · ${a.items.filter(i => i.kind !== 'not').length} kalem</span>${a.left_unpaid ? '<span class="badge-left">Çıktı, ödenmedi</span>' : ''}<span class="tot">${a.items.some(i => i.paid_tx_id) ? '<small style="margin-right:6px">kalan</small>' : ''}${fmt(a.eurEq)} €<small>= ${fmt(a.tlEq)} TL</small></span></div>
+    <table><tbody>${a.items.map(i => `<tr class="${i.paid_tx_id ? 'paid' : ''}"><td style="width:120px;color:var(--muted)">${shortDate(i.day).slice(0, 5)} ${timeOf(i.created_at)}</td><td>${esc(i.description)}${i.paid_tx_id ? ' <span class="paidtag">✓ ödendi</span>' : ''}</td><td class="n">${i.kind === 'not' ? '' : fmt(i.amount) + ' ' + SYM[i.currency]}</td></tr>`).join('')}</tbody></table>
+    <div class="acts"><button class="hbtn main" data-close-acc="${a.id}">Tahsil et</button><button class="hbtn" data-fix="${a.id}">Düzeltme</button><button class="hbtn" data-move="${a.id}">Oda değiştir</button></div></div>`).join('')
     : '<p style="color:var(--muted)">Açık oda hesabı yok.</p>';
 }
 let accSel = null;
@@ -308,8 +344,14 @@ $('accList').onclick = e => {
   const d = e.target.dataset; const id = Number(d.closeAcc || d.fix || d.move); if (!id) return;
   accSel = S.accounts.find(a => a.id === id); if (!accSel) return;
   if (d.closeAcc) {
-    $('accT').textContent = `${accSel.room} — hesabı kapat: ${fmt(accSel.eurEq)} € (${fmt(accSel.tlEq)} TL)`;
-    $('accItems').innerHTML = `<table><tbody>${accSel.items.filter(i => i.kind !== 'not').map(i => `<tr><td>${esc(i.description)}</td><td class="n">${fmt(i.amount)} ${SYM[i.currency]}</td></tr>`).join('')}<tr><td><b>Toplam</b></td><td class="n"><b>${fmt(accSel.eurEq)} € = ${fmt(accSel.tlEq)} TL</b></td></tr></tbody></table>`;
+    $('accT').textContent = `${accSel.room} — tahsilat`;
+    const due = accSel.items.filter(i => i.kind !== 'not' && !i.paid_tx_id);
+    $('accItems').innerHTML = `<table class="pick"><thead><tr><th style="width:34px"><input type="checkbox" id="accAll" checked></th><th>Kalem</th><th class="n">Tutar</th></tr></thead><tbody>` +
+      due.map(i => `<tr><td><input type="checkbox" class="accPick" value="${i.id}" checked></td><td>${esc(i.description)}</td><td class="n">${fmt(i.amount)} ${SYM[i.currency]}</td></tr>`).join('') +
+      `</tbody></table><div class="accSel" id="accSelTot"></div>`;
+    $('accAll').onchange = () => { document.querySelectorAll('.accPick').forEach(c => { c.checked = $('accAll').checked; }); updAccSel(); };
+    document.querySelectorAll('.accPick').forEach(c => { c.onchange = updAccSel; });
+    updAccSel();
     $('accPay').value = 'EUR'; $('accSplit').classList.remove('on'); ['qEUR', 'qTL', 'qCARD'].forEach(i => { $(i).value = ''; });
     $('mAcc').classList.add('on');
   } else if (d.fix) {
@@ -321,8 +363,24 @@ $('accList').onclick = e => {
   }
 };
 $('accPay').onchange = () => $('accSplit').classList.toggle('on', $('accPay').value === 'SPLIT');
+// Seçilen kalemlerin toplamı; hepsi seçiliyse hesap kapanır
+function accPicked() {
+  const ids = [...document.querySelectorAll('.accPick')].filter(c => c.checked).map(c => Number(c.value));
+  const items = accSel.items.filter(i => ids.includes(i.id)), r = S.rates.EUR.satis;
+  const t = { TL: 0, EUR: 0 }; items.forEach(i => { t[i.currency] += i.amount; });
+  const total = document.querySelectorAll('.accPick').length;
+  return { ids, all: ids.length === total, eur: Math.round((t.EUR + t.TL / r) * 100) / 100, tl: Math.round(t.TL + t.EUR * r) };
+}
+function updAccSel() {
+  const p = accPicked();
+  $('accAll').checked = p.all;
+  $('accSelTot').innerHTML = p.ids.length ? `${p.all ? 'Tümü' : p.ids.length + ' kalem'} seçili: <b>${fmt(p.eur)} € = ${fmt(p.tl)} TL</b>` : 'Tahsil edilecek kalemleri seçin.';
+  $('accOk').textContent = p.all ? 'Tahsil et ve hesabı kapat' : 'Seçilenleri tahsil et';
+  $('accOk').disabled = !p.ids.length;
+}
 $('accOk').onclick = async () => {
-  const st = await act('closeAccount', { accountId: accSel.id, payment: { method: $('accPay').value, eur: $('qEUR').value, tl: $('qTL').value, card: $('qCARD').value } }, `${accSel.room} hesabı kapatıldı`);
+  const p = accPicked();
+  const st = await act('payAccount', { accountId: accSel.id, itemIds: p.all ? null : p.ids, payment: { method: $('accPay').value, eur: $('qEUR').value, tl: $('qTL').value, card: $('qCARD').value } }, p.all ? `${accSel.room} hesabı kapatıldı` : `${accSel.room}: ${p.ids.length} kalem tahsil edildi`);
   if (st) $('mAcc').classList.remove('on');
 };
 $('fixOk').onclick = async () => {

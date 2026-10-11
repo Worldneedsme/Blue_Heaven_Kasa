@@ -83,6 +83,29 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   st = svc.voidTx({ id: efesTx.id });
   assert.strictEqual(st.accounts.find(a => a.id === acc.id).tlEq, 1765 - 480); ok('oda satışı iptali hesaptan düştü');
 
+  // Kısmi tahsilat: 105'e klima + damacana yazılır, önce sadece damacana tahsil edilir
+  st = svc.addSale({ room: '105', lines: [{ productId: P('Klima (A/C)').id, qty: 7 }], payment: { method: 'ODA' } });
+  let a5 = st.accounts.find(a => a.room === '105');
+  st = svc.addSale({ room: '105', lines: [{ productId: P('Damacana').id }], payment: { method: 'ODA' }, account: { mode: 'existing', id: a5.id } });
+  a5 = st.accounts.find(a => a.id === a5.id);
+  assert.strictEqual(a5.eurEq, 71);
+  const dam = a5.items.find(i => i.description === 'Damacana'), eurB = st.balances.EUR;
+  throws(() => svc.payAccount({ accountId: a5.id, itemIds: [], payment: { method: 'EUR' } }), /seçin/);
+  st = svc.payAccount({ accountId: a5.id, itemIds: [dam.id], payment: { method: 'EUR' } });
+  a5 = st.accounts.find(a => a.id === a5.id);
+  assert.ok(a5, 'hesap açık kalmalı'); assert.strictEqual(a5.eurEq, 63); assert.strictEqual(st.balances.EUR, eurB + 8);
+  assert.ok(a5.items.find(i => i.id === dam.id).paid_tx_id); assert.match(st.tx[0].description, /105 oda hesabından 1 kalem tahsil edildi/);
+  ok('kısmi tahsilat: damacana ödendi (8 €), klima borçta kaldı (63 €)');
+  const damSale = st.tx.find(t => t.description.startsWith('Damacana →'));
+  throws(() => svc.voidTx({ id: damSale.id }), /tahsilatı yapılmış/);
+  st = svc.voidTx({ id: st.tx[0].id });
+  assert.strictEqual(st.accounts.find(a => a.id === a5.id).eurEq, 71); assert.strictEqual(st.balances.EUR, eurB);
+  ok('kısmi tahsilat iptali kalemleri borca geri aldı');
+  st = svc.payAccount({ accountId: a5.id, itemIds: [dam.id], payment: { method: 'EUR' } });
+  st = svc.closeAccount({ accountId: a5.id, payment: { method: 'KART' } });
+  assert.ok(!st.accounts.find(a => a.id === a5.id)); assert.strictEqual(st.tx[0].card_tl, 63 * 55); assert.match(st.tx[0].description, /kapatıldı — 1 kalem/);
+  ok('kalan klima kartla tahsil edildi, hesap kapandı');
+
   // Para bozma, gider, Cengiz Bey
   let tl0 = st.balances.TL, e0 = st.balances.EUR;
   st = svc.addExchange({ dir: 'alis', cur: 'EUR', amount: 1150, rate: 53 });

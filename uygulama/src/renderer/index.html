@@ -51,10 +51,10 @@
   <div class="panel">
     <div class="tabs" id="tabs">
       <button data-t="satis" class="on">Satış</button>
-      <button data-t="doviz">Para Bozma</button>
       <button data-t="gider">Gider</button>
-      <button data-t="patron">Cengiz Bey</button>
+      <button data-t="doviz">Para Bozma</button>
       <button data-t="hesap">Oda Hesapları<span class="cnt" id="accCount"></span></button>
+      <button data-t="patron">Cengiz Bey</button>
       <span class="ratechip" id="rateChip" style="margin:auto 0 auto auto"></span>
       <button data-t="gecmis">📅 Geçmiş Günler</button>
     </div>
@@ -100,6 +100,7 @@
         <div class="f grow"><label id="dResL">TL</label><div class="sum" id="dRes">—</div></div>
         <button class="save" id="dSave">Kaydet</button>
       </div>
+      <div class="dxsum" id="dxSum"></div>
     </div>
 
     <!-- GİDER -->
@@ -117,14 +118,26 @@
     <div data-form="patron" class="hidden">
       <div class="row">
         <div class="f"><label>Tarih</label><div class="ro dateRo"></div></div>
-        <div class="f"><label>Getirdiği TL</label><input id="cTL" type="number" min="0" style="width:140px"></div>
-        <div class="f"><label>Getirdiği €</label><input id="cEURIN" type="number" min="0" style="width:120px"></div>
-        <div class="f"><label>Aldığı TL</label><input id="cTLOUT" type="number" min="0" style="width:130px"></div>
-        <div class="f"><label>Aldığı €</label><input id="cEUR" type="number" min="0" style="width:110px"></div>
-        <div class="f"><label>Aldığı $</label><input id="cUSD" type="number" min="0" style="width:100px"></div>
-        <div class="f"><label>Aldığı £</label><input id="cGBP" type="number" min="0" style="width:100px"></div>
+        <div class="grp-box in">
+          <div class="grp-t">⬇ Kasaya getirdi</div>
+          <div class="row">
+            <div class="f"><div class="adorn"><input id="cTL" type="number" min="0" style="width:150px" placeholder="0"><span>TL</span></div></div>
+            <div class="f"><div class="adorn"><input id="cEURIN" type="number" min="0" style="width:120px" placeholder="0"><span>€</span></div></div>
+          </div>
+        </div>
+        <div class="grp-box out">
+          <div class="grp-t">⬆ Kasadan aldı</div>
+          <div class="row">
+            <div class="f"><div class="adorn"><input id="cTLOUT" type="number" min="0" style="width:150px" placeholder="0"><span>TL</span></div></div>
+            <div class="f"><div class="adorn"><input id="cEUR" type="number" min="0" style="width:120px" placeholder="0"><span>€</span></div></div>
+            <div class="f hidden" id="cFxF"><div class="adorn"><input id="cUSD" type="number" min="0" style="width:110px" placeholder="0"><span>$</span></div></div>
+            <div class="f hidden" id="cFxF2"><div class="adorn"><input id="cGBP" type="number" min="0" style="width:110px" placeholder="0"><span>£</span></div></div>
+          </div>
+        </div>
         <button class="save" id="cSave">Kaydet</button>
       </div>
+      <div class="hint"><button class="link" id="cFx">+ Dolar / Sterlin</button></div>
+    </div>
     </div>
 
     <!-- ODA HESAPLARI -->

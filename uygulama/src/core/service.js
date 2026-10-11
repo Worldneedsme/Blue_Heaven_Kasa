@@ -120,10 +120,11 @@ class Service {
     return { day: d, balances: b, card: r2(r.card || 0) };
   }
 
+  // Hesabın görünümü: toplamlar sadece henüz ödenmemiş kalemlerden hesaplanır.
   accountView(a) {
     const items = this.s.all('SELECT * FROM account_items WHERE account_id=? AND void=0 ORDER BY id', [a.id]);
     const tot = { TL: 0, EUR: 0 };
-    for (const i of items) tot[i.currency] = r2((tot[i.currency] || 0) + i.amount);
+    for (const i of items) if (!i.paid_tx_id) tot[i.currency] = r2((tot[i.currency] || 0) + i.amount);
     const rate = this.rates().EUR.satis;
     return { ...a, items, totals: tot, eurEq: r2(tot.EUR + tot.TL / rate), tlEq: Math.round(tot.TL + tot.EUR * rate) };
   }
@@ -335,21 +336,34 @@ class Service {
     });
   }
 
-  closeAccount({ accountId, payment }) {
+  // Oda hesabından tahsilat. itemIds verilmezse ödenmemiş kalemlerin hepsi tahsil edilir.
+  // Ödenmemiş kalem kalmazsa hesap kapanır; kalırsa hesap açık kalır ve kalan borç görünür.
+  payAccount({ accountId, itemIds, payment }) {
     const a = this.s.get("SELECT * FROM accounts WHERE id=? AND status='open'", [accountId]); if (!a) fail('Hesap bulunamadı.');
-    const v = this.accountView(a);
-    if (v.eurEq < 0) fail('Hesap bakiyesi eksi; önce düzeltme yapın.');
+    const unpaid = this.s.all("SELECT * FROM account_items WHERE account_id=? AND void=0 AND paid_tx_id IS NULL AND kind<>'not' ORDER BY id", [a.id]);
+    if (!unpaid.length) fail('Tahsil edilecek kalem yok.');
+    const sel = itemIds == null ? unpaid : unpaid.filter(i => itemIds.map(Number).includes(i.id));
+    if (!sel.length) fail('Tahsil edilecek kalem seçin.');
+    const rate = this.rates().EUR.satis;
+    const tot = { TL: 0, EUR: 0 }; for (const i of sel) tot[i.currency] += i.amount;
+    const eur = r2(tot.EUR + tot.TL / rate), tl = Math.round(tot.TL + tot.EUR * rate);
+    if (eur < 0) fail('Seçilen kalemlerin toplamı eksi; düzeltmeyi diğer kalemlerle birlikte seçin.');
+    const all = sel.length === unpaid.length;
     return this.s.tx(() => {
       let mv = {}, card = 0;
-      if (v.eurEq > 0) ({ mv, card } = this.resolvePayment(payment, v.eurEq, v.tlEq));
-      const day = this.requireDay();
-      const label = v.eurEq > 0 ? PAY_LABEL[payment.method] : 'ödeme yok';
-      this.insertTx({ type: 'tahsilat', room: a.room, description: `${a.room} oda hesabı kapatıldı — ${v.items.filter(i => i.kind !== 'not').length} kalem (${label})`,
-        mv, card, method: v.eurEq > 0 ? payment.method : null, accountId: a.id, meta: { eur: v.eurEq, tl: v.tlEq } });
-      this.s.run("UPDATE accounts SET status='closed', closed_day=?, closed_at=? WHERE id=?", [day.date, nowStr(), a.id]);
+      if (eur > 0) ({ mv, card } = this.resolvePayment(payment, eur, tl));
+      const label = eur > 0 ? PAY_LABEL[payment.method] : 'ödeme yok';
+      const description = all ? `${a.room} oda hesabı kapatıldı — ${sel.length} kalem (${label})` : `${a.room} oda hesabından ${sel.length} kalem tahsil edildi (${label})`;
+      const txId = this.insertTx({ type: 'tahsilat', room: a.room, description, mv, card, method: eur > 0 ? payment.method : null, accountId: a.id, meta: { eur, tl, partial: !all } });
+      this.s.run(`UPDATE account_items SET paid_tx_id=? WHERE id IN (${sel.map(() => '?').join(',')})`, [txId, ...sel.map(i => i.id)]);
+      if (all) {
+        const day = this.requireDay();
+        this.s.run("UPDATE accounts SET status='closed', closed_day=?, closed_at=? WHERE id=?", [day.date, nowStr(), a.id]);
+      }
       return this.getState();
     });
   }
+  closeAccount({ accountId, payment }) { return this.payAccount({ accountId, itemIds: null, payment }); }
 
   // ---------- iptal ----------
   voidTx({ id }) {
@@ -359,10 +373,12 @@ class Service {
     if (t.day !== day.date) fail('Sadece açık günün işlemleri iptal edilebilir.');
     return this.s.tx(() => {
       if (t.type === 'tahsilat') {
+        this.s.run('UPDATE account_items SET paid_tx_id=NULL WHERE paid_tx_id=?', [t.id]);
         this.s.run("UPDATE accounts SET status='open', closed_day=NULL, closed_at=NULL WHERE id=?", [t.account_id]);
       } else if (t.account_id) {
         const a = this.s.get('SELECT status FROM accounts WHERE id=?', [t.account_id]);
         if (a && a.status !== 'open') fail('Bu kalemin oda hesabı kapatılmış. Önce o hesabın tahsilatını iptal edin.');
+        if (this.s.get('SELECT id FROM account_items WHERE tx_id=? AND paid_tx_id IS NOT NULL', [t.id])) fail('Bu kalemin tahsilatı yapılmış. Önce o tahsilatı iptal edin.');
         this.s.run('UPDATE account_items SET void=1 WHERE tx_id=?', [t.id]);
       }
       this.s.run('UPDATE transactions SET void=1, voided_at=? WHERE id=?', [nowStr(), t.id]);
