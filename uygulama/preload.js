@@ -6,4 +6,6 @@ contextBridge.exposeInMainWorld('kasa', {
   pickDir: () => ipcRenderer.invoke('pickDir'),
   onUpdateReady: cb => ipcRenderer.on('update-ready', (_e, version) => cb(version)),
   installUpdate: () => ipcRenderer.invoke('installUpdate'),
+  updateStatus: () => ipcRenderer.invoke('updateStatus'),
+  checkUpdate: () => ipcRenderer.invoke('checkUpdate'),
 });

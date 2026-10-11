@@ -470,7 +470,32 @@ function prodRow(p) {
     <td style="text-align:center"><input data-f="active" type="checkbox" ${p.active !== 0 ? 'checked' : ''} style="width:18px;height:18px"></td>
     <td><button class="hbtn mini" data-save-prod>${id ? 'Kaydet' : 'Ekle'}</button></td></tr>`;
 }
+function updText(u) {
+  if (!u) return '';
+  const cur = `Kurulu sürüm: <b>${esc(u.version)}</b>`;
+  const m = {
+    dev: 'Geliştirme sürümü — güncelleme denetlenmez.',
+    idle: 'Henüz denetlenmedi.',
+    checking: 'Denetleniyor…',
+    none: '✓ Program güncel.',
+    downloading: `Yeni sürüm <b>${esc(u.next || '')}</b> indiriliyor… %${u.percent || 0}`,
+    ready: `✓ Yeni sürüm <b>${esc(u.next || '')}</b> indirildi. Program kapatılınca kurulur.`,
+    error: '⚠️ ' + esc(u.error || 'Denetlenemedi.'),
+  }[u.state] || '';
+  return `${cur} · ${m}`;
+}
+async function refreshUpd(force) {
+  if (!window.kasa || !window.kasa.updateStatus) { $('updStatus').innerHTML = 'Güncelleme sadece kurulu programda çalışır.'; $('updCheck').classList.add('hidden'); return; }
+  $('updStatus').innerHTML = updText({ ...(await window.kasa.updateStatus()), ...(force ? { state: 'checking' } : {}) });
+  const u = force ? await window.kasa.checkUpdate() : await window.kasa.updateStatus();
+  $('updStatus').innerHTML = updText(u);
+  $('updInstall').classList.toggle('hidden', u.state !== 'ready');
+}
+$('updCheck').onclick = () => refreshUpd(true);
+$('updInstall').onclick = async () => { if (await askConfirm('Program yeniden başlatılsın mı?', 'Yeni sürüm kurulup program tekrar açılacak. Kaydedilmiş işlemler korunur.', 'Yeniden başlat')) window.kasa.installUpdate(); };
+
 function renderSettings() {
+  refreshUpd(false);
   $('verLbl').textContent = S && S.version ? 'Sürüm ' + S.version : '';
   $('setRates').innerHTML = ['EUR', 'USD', 'GBP'].map(c => `<tr><td><b>${SYM[c]}</b></td><td><input data-c="${c}" data-k="alis" type="number" step="0.01" value="${SET.rates[c].alis}"></td><td><input data-c="${c}" data-k="satis" type="number" step="0.01" value="${SET.rates[c].satis}"></td></tr>`).join('');
   $('setProds').innerHTML = SET.products.map(prodRow).join('') + prodRow({ category: SET.categories[0], currency: 'EUR', unit: 'adet', active: 1 });

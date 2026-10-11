@@ -69,6 +69,10 @@ if (!app.requestSingleInstanceLock()) {
     win.loadFile(path.join(__dirname, 'src', 'renderer', 'index.html'));
 
     if (app.isPackaged && !SMOKE) setupUpdates(log);
+    else {
+      ipcMain.handle('updateStatus', () => ({ state: 'dev', version: app.getVersion() }));
+      ipcMain.handle('checkUpdate', () => ({ state: 'dev', version: app.getVersion() }));
+    }
   });
 
   app.on('window-all-closed', () => app.quit());
@@ -82,10 +86,28 @@ function setupUpdates(log) {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.logger = { info() {}, warn() {}, debug() {}, error: e => log('güncelleme: ' + (e && e.message || e)) };
-  autoUpdater.on('update-downloaded', info => { if (win) win.webContents.send('update-ready', info.version); });
-  autoUpdater.on('error', e => log('güncelleme: ' + (e && e.message || e)));
+
+  // Ayarlar ekranında gösterilen durum
+  let status = { state: 'idle', version: app.getVersion() };
+  const set = s => { status = { ...status, ...s, at: new Date().toISOString() }; };
+  autoUpdater.on('checking-for-update', () => set({ state: 'checking' }));
+  autoUpdater.on('update-not-available', () => set({ state: 'none' }));
+  autoUpdater.on('update-available', info => set({ state: 'downloading', next: info.version, percent: 0 }));
+  autoUpdater.on('download-progress', p => set({ state: 'downloading', percent: Math.round(p.percent || 0) }));
+  autoUpdater.on('update-downloaded', info => {
+    set({ state: 'ready', next: info.version });
+    if (win) win.webContents.send('update-ready', info.version);
+  });
+  autoUpdater.on('error', e => { set({ state: 'error', error: 'İnternete ulaşılamadı veya güncelleme sunucusuna bağlanılamadı.' }); log('güncelleme: ' + (e && e.message || e)); });
+
+  const check = () => autoUpdater.checkForUpdates().catch(() => { /* çevrimdışı: durum 'error' olarak işaretlenir */ });
   ipcMain.handle('installUpdate', () => autoUpdater.quitAndInstall(false, true));
-  const check = () => autoUpdater.checkForUpdates().catch(() => { /* çevrimdışı */ });
+  ipcMain.handle('updateStatus', () => status);
+  ipcMain.handle('checkUpdate', async () => {
+    if (status.state === 'downloading' || status.state === 'ready') return status;
+    await check();
+    return status;
+  });
   setTimeout(check, 10 * 1000);
   setInterval(check, 4 * 60 * 60 * 1000);
 }
