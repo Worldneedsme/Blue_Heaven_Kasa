@@ -197,6 +197,13 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   assert.ok(svc.getSettings({ token: svc.verifyPin('5555').token }).backups.length > nBk);
   ok('verileri sıfırla → kurulum ekranı, ürünler ve kurlar korundu, önce yedek alındı');
 
+  // Arayüz: ana ekrandaki kutular dengeli açılıp kapanmalı (fazla/eksik </div> düzeni bozar)
+  const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'index.html'), 'utf8');
+  const mainPart = html.slice(html.indexOf('<div class="wrap hidden" id="main">'), html.indexOf('<!-- Aynı misafir mi -->'));
+  const depth = (mainPart.match(/<div\b/g) || []).length - (mainPart.match(/<\/div>/g) || []).length;
+  assert.strictEqual(depth, 0, 'ana ekranda div açılış/kapanış dengesi bozuk');
+  ok('ana ekran düzeni (div dengesi) sağlam');
+
   console.log(`\nTüm testler geçti (${step}).`);
   fs.rmSync(dir, { recursive: true, force: true });
 })().catch(e => { console.error('\n✗ TEST HATASI:', e.message); console.error(e.stack); process.exit(1); });
