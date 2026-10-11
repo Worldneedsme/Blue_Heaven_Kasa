@@ -1,0 +1,69 @@
+{
+  "name": "blue-heaven-kasa",
+  "productName": "Blue Heaven Kasa",
+  "version": "1.0.1",
+  "description": "Blue Heaven Apart resepsiyon kasa programı (çevrimdışı)",
+  "author": "Blue Heaven Apart",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "node dev/server.js",
+    "test": "node test/smoke.js",
+    "dist:win": "electron-builder --win nsis --x64",
+    "release:win": "electron-builder --win nsis --x64 --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "6.3.9",
+    "sql.js": "1.12.0"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.blueheaven.kasa",
+    "productName": "Blue Heaven Kasa",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "!node_modules/sql.js/dist/*.zip",
+      "!node_modules/sql.js/dist/*debug*",
+      "!node_modules/sql.js/dist/sql-asm*",
+      "!node_modules/sql.js/dist/worker.*",
+      "!node_modules/sql.js/.devcontainer/**",
+      "!node_modules/sql.js/*.md",
+      "!node_modules/sql.js/logo.svg"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Blue Heaven Kasa",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Worldneedsme",
+        "repo": "Blue_Heaven_Kasa",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Worldneedsme/Blue_Heaven_Kasa.git"
+  }
+}

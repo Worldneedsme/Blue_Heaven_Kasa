@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'">
+<title>Blue Heaven Kasa</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- İLK KURULUM -->
+<div class="setup hidden" id="setup">
+  <div class="box panel">
+    <img class="logo" src="logo.png" alt="Hotel Blue Heaven" style="height:64px;margin:0 auto">
+    <h3 style="text-align:center">Kasa programına hoş geldiniz</h3>
+    <span style="color:var(--muted);font-size:14px">Başlamak için kasada şu an bulunan parayı sayıp yazın. Bu tutar ilk günün devri olur.</span>
+    <div class="setup-grid grid4">
+      <div class="f"><label>TL</label><input id="suTL" type="number" min="0" placeholder="0"></div>
+      <div class="f"><label>€</label><input id="suEUR" type="number" min="0" placeholder="0"></div>
+      <div class="f"><label>$</label><input id="suUSD" type="number" min="0" placeholder="0"></div>
+      <div class="f"><label>£</label><input id="suGBP" type="number" min="0" placeholder="0"></div>
+    </div>
+    <span style="color:var(--muted);font-size:14px">Rapor ve Ayarlar bölümünün şifresini belirleyin (Cengiz Bey için, 4–12 rakam).</span>
+    <div class="setup-grid grid4">
+      <div class="f"><label>Şifre</label><input id="suPin" type="password" inputmode="numeric" autocomplete="new-password"></div>
+      <div class="f"><label>Şifre tekrar</label><input id="suPin2" type="password" inputmode="numeric" autocomplete="new-password"></div>
+    </div>
+    <button class="save" id="suOk" style="width:100%">Başla</button>
+  </div>
+</div>
+
+<div class="wrap hidden" id="main">
+  <header>
+    <img class="logo" src="logo.png" alt="Hotel Blue Heaven">
+    <div class="brand">Kasa<small id="today"></small><span class="saved" id="saved"></span></div>
+    <div class="bal">
+      <div><span class="k">Kasa TL</span><span class="v" id="bTL"></span></div>
+      <div><span class="k">Kasa €</span><span class="v" id="bEUR"></span></div>
+      <div><span class="k">Kasa $</span><span class="v" id="bUSD"></span></div>
+      <div><span class="k">Kasa £</span><span class="v" id="bGBP"></span></div>
+      <div class="card"><span class="k">Bugün kart</span><span class="v" id="bCARD"></span></div>
+    </div>
+    <button class="hbtn" id="openRep">📊 Rapor</button>
+    <button class="hbtn" id="openSet" title="Ayarlar">⚙️ Ayarlar</button>
+    <button class="hbtn main" id="openEod">Gün Sonu</button>
+  </header>
+
+  <div class="banner hidden" id="stale"></div>
+  <div class="banner hidden" id="upd" style="background:#e6f1f8;border-color:#bcd8ea;color:#124d73"></div>
+
+  <div class="panel">
+    <div class="tabs" id="tabs">
+      <button data-t="satis" class="on">Satış</button>
+      <button data-t="doviz">Para Bozma</button>
+      <button data-t="gider">Gider</button>
+      <button data-t="patron">Cengiz Bey</button>
+      <button data-t="hesap">Oda Hesapları<span class="cnt" id="accCount"></span></button>
+      <span class="ratechip" id="rateChip" style="margin:auto 0 auto auto"></span>
+      <button data-t="gecmis">📅 Geçmiş Günler</button>
+    </div>
+
+    <!-- SATIŞ -->
+    <div data-form="satis">
+      <div class="pending" id="pending"></div>
+      <div class="row">
+        <div class="f"><label>Tarih</label><div class="ro dateRo"></div></div>
+        <div class="f"><label>Oda (isteğe bağlı)</label><select id="sRoom" style="width:130px"></select></div>
+        <div class="f grow"><label>Ürün / Hizmet</label>
+          <div class="combo"><input id="sProdQ" autocomplete="off" spellcheck="false" placeholder="Yazın veya seçin… (ör. dam)"><div class="combo-list hidden" id="sProdL"></div></div>
+        </div>
+        <div class="f"><label id="sQtyL">Adet</label><input id="sQty" type="number" min="1" value="1" style="width:80px"></div>
+        <div class="f hidden" id="sFreeF"><label>Tutar</label><div style="display:flex;gap:6px"><input id="sFree" type="number" min="0" style="width:110px"><select id="sFreeCur"><option value="EUR">€</option><option value="TL">TL</option></select></div></div>
+        <div class="f"><label>Tutar</label><div class="sum" id="sSum">—</div></div>
+        <div class="f"><label>Ödeme</label><select id="sPay" style="width:170px">
+          <option value="EUR">Nakit €</option><option value="TL">Nakit TL</option><option value="KART">Kart</option><option value="SPLIT">Bölünmüş</option><option value="ODA">Oda hesabına yaz</option></select></div>
+        <button class="save" id="sSave">Kaydet</button>
+      </div>
+      <div class="split" id="split">
+        <div class="f"><label>Nakit €</label><input id="pEUR" type="number" min="0"></div>
+        <div class="f"><label>Nakit TL</label><input id="pTL" type="number" min="0"></div>
+        <div class="f"><label>Kart (TL)</label><input id="pCARD" type="number" min="0"></div>
+        <div class="f"><label>Kalan</label><div class="sum" id="pRest">—</div></div>
+      </div>
+      <div class="disc" id="disc">
+        <div class="f"><label>Yeni birim fiyat</label><div class="adorn"><input id="iPrice" type="number" min="0" style="width:130px"><span id="iSym">€</span></div></div>
+        <div class="f grow"><label>İndirim açıklaması (zorunlu)</label><input id="iNote" placeholder="örn. uzun konaklama, tanıdık misafir"></div>
+        <button class="link" id="iCancel">İndirimi kaldır</button>
+      </div>
+      <div class="hint"><button class="link" id="sAdd">+ Aynı misafire başka ürün ekle</button> · <button class="link" id="sDisc">Fiyatı değiştir / indirim</button> · <span>Kaydetmek için <kbd>Enter</kbd></span> <span id="sHint"></span></div>
+    </div>
+
+    <!-- PARA BOZMA -->
+    <div data-form="doviz" class="hidden">
+      <div class="row">
+        <div class="f"><label>Tarih</label><div class="ro dateRo"></div></div>
+        <div class="f"><label>İşlem</label><select id="dDir" style="width:230px"><option value="alis">Para bozma (€ → TL)</option><option value="satis">Ters bozma (TL → €)</option></select></div>
+        <div class="f"><label>Para birimi</label><select id="dCur" style="width:120px"><option value="EUR">€ Euro</option><option value="USD">$ Dolar</option><option value="GBP">£ Sterlin</option></select></div>
+        <div class="f"><label>Döviz tutarı</label><div class="adorn"><input id="dAmt" type="number" min="0" style="width:150px"><span id="dSym">€</span></div></div>
+        <div class="f"><label>Kur</label><input id="dRate" type="number" step="0.01" style="width:90px"></div>
+        <div class="f grow"><label id="dResL">TL</label><div class="sum" id="dRes">—</div></div>
+        <button class="save" id="dSave">Kaydet</button>
+      </div>
+    </div>
+
+    <!-- GİDER -->
+    <div data-form="gider" class="hidden">
+      <div class="row">
+        <div class="f"><label>Tarih</label><div class="ro dateRo"></div></div>
+        <div class="f"><label>Kategori</label><select id="gCat" style="width:250px"></select></div>
+        <div class="f grow"><label>Açıklama (isteğe bağlı)</label><input id="gDesc" placeholder="örn. BİM ekmek, yufka, buz"></div>
+        <div class="f"><label>Tutar</label><div style="display:flex;gap:6px"><input id="gAmt" type="number" min="0" style="width:120px"><select id="gCur"><option value="TL">TL</option><option value="EUR">€</option><option value="USD">$</option></select></div></div>
+        <button class="save" id="gSave">Kaydet</button>
+      </div>
+    </div>
+
+    <!-- CENGİZ BEY -->
+    <div data-form="patron" class="hidden">
+      <div class="row">
+        <div class="f"><label>Tarih</label><div class="ro dateRo"></div></div>
+        <div class="f"><label>Getirdiği TL</label><input id="cTL" type="number" min="0" style="width:140px"></div>
+        <div class="f"><label>Aldığı TL</label><input id="cTLOUT" type="number" min="0" style="width:130px"></div>
+        <div class="f"><label>Aldığı €</label><input id="cEUR" type="number" min="0" style="width:110px"></div>
+        <div class="f"><label>Aldığı $</label><input id="cUSD" type="number" min="0" style="width:100px"></div>
+        <div class="f"><label>Aldığı £</label><input id="cGBP" type="number" min="0" style="width:100px"></div>
+        <button class="save" id="cSave">Kaydet</button>
+      </div>
+    </div>
+
+    <!-- ODA HESAPLARI -->
+    <div data-form="hesap" class="hidden">
+      <div class="row" style="margin-bottom:6px">
+        <div class="f"><label>Oda</label><select id="aRoom" style="width:130px"></select></div>
+        <div class="f grow"><label>Misafir adına ödeme (eczane, taksi, nakit avans…)</label><input id="aDesc" placeholder="örn. Eczane ilaç"></div>
+        <div class="f"><label>Tutar</label><div style="display:flex;gap:6px"><input id="aAmt" type="number" min="0" style="width:120px"><select id="aCur"><option value="TL">TL</option><option value="EUR">€</option></select></div></div>
+        <button class="save" id="aSave">Kasadan öde, hesaba yaz</button>
+      </div>
+      <div class="hint" style="margin-bottom:14px">Satışları odaya yazmak için Satış sekmesinde ödeme olarak “Oda hesabına yaz”ı seçin.</div>
+      <div id="accList"></div>
+    </div>
+
+    <!-- GEÇMİŞ -->
+    <div data-form="gecmis" class="hidden">
+      <div class="hnav">
+        <button class="hbtn" id="hOlder" title="Önceki gün">◀</button>
+        <select id="hSel"></select>
+        <button class="hbtn" id="hNewer" title="Sonraki gün">▶</button>
+      </div>
+      <div id="hBody"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="todayPanel">
+    <table>
+      <thead><tr><th>Saat</th><th>Tür</th><th>Oda</th><th>Açıklama</th><th class="n">TL</th><th class="n">€</th><th class="n">$</th><th class="n">£</th><th class="n">Kart TL</th><th></th></tr></thead>
+      <tbody id="tx"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Aynı misafir mi -->
+<div class="modal" id="mSame"><div class="box" style="width:min(460px,100%)">
+  <h3 id="sameT"></h3>
+  <span id="sameS" style="color:var(--muted);font-size:14px"></span>
+  <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button class="hbtn" data-close>Vazgeç</button><button class="hbtn" id="sameNew">Yeni misafir</button><button class="hbtn main" id="sameOld">Aynı misafir</button></div>
+</div></div>
+
+<!-- Hesap kapat -->
+<div class="modal" id="mAcc"><div class="box">
+  <h3 id="accT"></h3>
+  <div id="accItems"></div>
+  <div class="row"><div class="f"><label>Ödeme</label><select id="accPay" style="width:170px"><option value="EUR">Nakit €</option><option value="TL">Nakit TL</option><option value="KART">Kart</option><option value="SPLIT">Bölünmüş</option></select></div></div>
+  <div class="split" id="accSplit">
+    <div class="f"><label>Nakit €</label><input id="qEUR" type="number" min="0"></div>
+    <div class="f"><label>Nakit TL</label><input id="qTL" type="number" min="0"></div>
+    <div class="f"><label>Kart (TL)</label><input id="qCARD" type="number" min="0"></div>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button class="hbtn" data-close>Vazgeç</button><button class="hbtn main" id="accOk">Tahsil et ve hesabı kapat</button></div>
+</div></div>
+
+<!-- Hesap düzeltme -->
+<div class="modal" id="mFix"><div class="box" style="width:min(460px,100%)">
+  <h3 id="fixT">Hesap düzeltme</h3>
+  <span style="color:var(--muted);font-size:14px">Fazla yazılan bir şeyi düşmek için tutarı eksi yazın (ör. -240).</span>
+  <div class="f"><label>Açıklama</label><input id="fixDesc" placeholder="örn. Efes fazla yazılmış"></div>
+  <div class="f"><label>Tutar</label><div style="display:flex;gap:6px"><input id="fixAmt" type="number" style="width:140px"><select id="fixCur"><option value="TL">TL</option><option value="EUR">€</option></select></div></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button class="hbtn" data-close>Vazgeç</button><button class="hbtn main" id="fixOk">Kaydet</button></div>
+</div></div>
+
+<!-- Oda değiştir -->
+<div class="modal" id="mMove"><div class="box" style="width:min(380px,100%)">
+  <h3 id="moveT">Oda değiştir</h3>
+  <div class="f"><label>Yeni oda</label><select id="moveRoom"></select></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button class="hbtn" data-close>Vazgeç</button><button class="hbtn main" id="moveOk">Taşı</button></div>
+</div></div>
+
+<!-- Gün sonu -->
+<div class="modal" id="mEod"><div class="box">
+  <h3>Gün sonu</h3>
+  <span style="color:var(--muted);font-size:14px">Kasayı sayıp yazın. Fark varsa kaydedilir, sayılan tutar bir sonraki güne devreder. Kapatılan gün “Geçmiş Günler”de görünür.</span>
+  <div class="eod" id="eod"></div>
+  <div class="eodacc hidden" id="eodAcc"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button class="hbtn" data-close>Vazgeç</button><button class="hbtn main" id="eodOk">Günü kapat</button></div>
+</div></div>
+
+<!-- Şifre -->
+<div class="modal" id="mPin"><div class="box pinbox">
+  <h3 id="pinT">🔒 Rapor</h3>
+  <span style="color:var(--muted);font-size:14px">Bu bölüm Cengiz Bey’e özeldir. Şifreyi girin.</span>
+  <input id="pin" type="password" inputmode="numeric" autocomplete="off">
+  <div class="pinerr" id="pinErr"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button class="hbtn" data-close>Vazgeç</button><button class="hbtn main" id="pinOk">Aç</button></div>
+</div></div>
+
+<!-- Rapor -->
+<div class="report" id="rep"><div class="wrap">
+  <header>
+    <img class="logo" src="logo.png" alt="Hotel Blue Heaven">
+    <div class="rhead" style="flex:1">
+      <h2>Rapor <span id="rLabel" style="font-weight:400;color:var(--muted);font-size:15px"></span></h2>
+      <div class="seg" id="rPer"><button data-p="day" class="on">Açık gün</button><button data-p="month">Bu ay</button><button data-p="prevmonth">Geçen ay</button></div>
+      <button class="hbtn" id="repClose">🔒 Kilitle ve kapat</button>
+    </div>
+  </header>
+  <div class="tiles" id="rTiles"></div>
+  <div class="panel hidden" id="rDailyP"><h3>Günlük satış (€ karşılığı)</h3><div id="rDaily"></div></div>
+  <div class="cols">
+    <div class="panel"><h3>Kategoriye göre satış</h3><div class="bars" id="rCat"></div></div>
+    <div class="panel"><h3>Ödeme şekli</h3><div id="rPay"></div></div>
+  </div>
+  <div class="cols">
+    <div class="panel"><h3>En çok satanlar</h3><div class="bars" id="rProd"></div></div>
+    <div class="panel"><h3>Giderler</h3><div class="bars" id="rGider"></div></div>
+  </div>
+  <div class="panel"><h3>Para bozma</h3><div id="rDx"></div></div>
+</div></div>
+
+<!-- Ayarlar -->
+<div class="overlay settings" id="set"><div class="wrap">
+  <header>
+    <img class="logo" src="logo.png" alt="Hotel Blue Heaven">
+    <div class="rhead" style="flex:1"><h2>Ayarlar <span id="verLbl" style="font-weight:400;color:var(--muted);font-size:14px"></span></h2><button class="hbtn" id="setClose" style="margin-left:auto">🔒 Kilitle ve kapat</button></div>
+  </header>
+  <div class="panel">
+    <h3>Kurlar</h3>
+    <table class="rates"><thead><tr><th></th><th>Alış (para bozma)</th><th>Satış (hizmet fiyatı / ters bozma)</th></tr></thead><tbody id="setRates"></tbody></table>
+    <div style="margin-top:10px"><button class="hbtn main mini" id="setRatesOk">Kurları kaydet</button> <span class="hint">€ fiyatlı hizmetlerin TL karşılığı € satış kuruyla hesaplanır.</span></div>
+  </div>
+  <div class="panel">
+    <h3>Ürünler ve fiyatlar</h3>
+    <div class="hint" style="margin:0 0 10px">Fiyatı boş bırakılan ürünlerde tutar satış sırasında yazılır. Kullanılmayan ürünün “Aktif” işaretini kaldırın (silinmez, geçmiş kayıtlar bozulmaz).</div>
+    <div class="tablewrap"><table><thead><tr><th>Ad</th><th>Kategori</th><th>Para birimi</th><th>Fiyat</th><th>Birim</th><th>Aktif</th><th></th></tr></thead><tbody id="setProds"></tbody></table></div>
+  </div>
+  <div class="cols">
+    <div class="panel">
+      <h3>Rapor ve ayarlar şifresi</h3>
+      <div class="form" style="max-width:340px">
+        <div class="f"><label>Mevcut şifre</label><input id="pwOld" type="password" inputmode="numeric"></div>
+        <div class="f"><label>Yeni şifre (4–12 rakam)</label><input id="pwNew" type="password" inputmode="numeric"></div>
+        <div class="f"><label>Yeni şifre tekrar</label><input id="pwNew2" type="password" inputmode="numeric"></div>
+        <button class="hbtn main mini" id="pwOk" style="justify-self:start">Şifreyi değiştir</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Yedekler</h3>
+      <div id="bkInfo" style="font-size:14px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="hbtn mini" id="bkNow">Şimdi yedek al</button><button class="hbtn mini" id="bkDir">İkinci yedek klasörü seç</button><button class="hbtn mini hidden" id="bkDirClear">İkinci klasörü kaldır</button></div>
+      <div class="hint" style="margin:0 0 10px">USB bellekte kök dizinde <b>KasaYedek</b> adlı bir klasör açarsanız, bellek takılıyken yedekler oraya da alınır.</div>
+      <div style="max-height:260px;overflow:auto"><table><tbody id="bkList"></tbody></table></div>
+    </div>
+  </div>
+</div></div>
+
+<!-- Onay -->
+<div class="modal" id="mConfirm" style="z-index:30"><div class="box" style="width:min(440px,100%)">
+  <h3 id="cfT"></h3>
+  <span id="cfS" style="color:var(--muted);font-size:14px;white-space:pre-line"></span>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button class="hbtn" id="cfNo">Vazgeç</button><button class="hbtn main" id="cfYes">Evet</button></div>
+</div></div>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

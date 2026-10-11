@@ -1,0 +1,13 @@
+# Gerçek kasa verisi ve kişisel dosyalar repoya girmez
+*.xlsx
+Eylul Ayi Kasa/
+*.db
+*.db.tmp
+node_modules/
+dist/
+uygulama/veri-dev/
+.DS_Store
+araclar/*.zip
+# Taslak ve yerel ayarlar
+tasarim/
+.claude/

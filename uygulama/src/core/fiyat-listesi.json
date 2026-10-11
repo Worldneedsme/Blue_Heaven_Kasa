@@ -1,0 +1,428 @@
+{
+  "_not": "price=null -> serbest tutar (her seferinde elle girilir). unit: adet | gece | gun. Kaynak: Excel kayıtları, otel menüleri (fotoğraf) ve kullanıcı bilgisi, 2026-10-11. 'kesin': false olanlar teyit bekliyor. Güncelleme 2026-10-11: safe 3€/gün, havlu 1€/gün veya 7€/hafta, güneş kremi 10€, kurlar onaylandı; Face Care listeye alınmadı; çamaşır 600 TL / makine (2 makine = 1200 TL). Güncelleme 2026-10-11 (Ağustos analizi sonrası): safe 2€/gün; çocuk kahvaltısı 5€; havlu satışı 9€; bisiklet 6€; yüz maskesi & peeling 20€ teyitli.",
+  "kurlar": {
+    "EUR": {
+      "alis": 53,
+      "satis": 55
+    },
+    "USD": {
+      "alis": 47,
+      "satis": 49
+    },
+    "GBP": {
+      "alis": 62,
+      "satis": 65
+    }
+  },
+  "kategoriler": [
+    {
+      "id": "hizmet",
+      "ad": "Hizmetler",
+      "urunler": [
+        {
+          "ad": "Late Check-out (17:30'a kadar)",
+          "cur": "EUR",
+          "price": 25,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Late Check-out (24:00'e kadar)",
+          "cur": "EUR",
+          "price": 35,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Kahvaltı",
+          "cur": "EUR",
+          "price": 10,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Çocuk Kahvaltısı",
+          "cur": "EUR",
+          "price": 5,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Klima (A/C)",
+          "cur": "EUR",
+          "price": 9,
+          "unit": "gece",
+          "kesin": true
+        },
+        {
+          "ad": "Damacana",
+          "cur": "EUR",
+          "price": 8,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Kasa (Safe)",
+          "cur": "EUR",
+          "price": 2,
+          "unit": "gun",
+          "kesin": true
+        },
+        {
+          "ad": "Havlu kiralama (günlük)",
+          "cur": "EUR",
+          "price": 1,
+          "unit": "gun",
+          "kesin": true
+        },
+        {
+          "ad": "Havlu kiralama (haftalık)",
+          "cur": "EUR",
+          "price": 7,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Havlu satışı",
+          "cur": "EUR",
+          "price": 9,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Bisiklet kiralama",
+          "cur": "EUR",
+          "price": 6,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Çamaşır (Laundry)",
+          "cur": "TL",
+          "price": 600,
+          "unit": "makine",
+          "kesin": true
+        },
+        {
+          "ad": "Konaklama",
+          "cur": "EUR",
+          "price": null,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Ekstra kişi",
+          "cur": "EUR",
+          "price": null,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Poolside / oda farkı",
+          "cur": "EUR",
+          "price": null,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Organizasyon",
+          "cur": "EUR",
+          "price": null,
+          "unit": "adet",
+          "kesin": true
+        }
+      ]
+    },
+    {
+      "id": "masaj",
+      "ad": "Masaj",
+      "urunler": [
+        {
+          "ad": "Standart Masaj (40 dk)",
+          "cur": "EUR",
+          "price": 40,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Standart Masaj x3 (paket)",
+          "cur": "EUR",
+          "price": 100,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Bronz Masaj (45 dk)",
+          "cur": "EUR",
+          "price": 40,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Medikal Masaj (60 dk)",
+          "cur": "EUR",
+          "price": 50,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Medikal Sırt Masajı",
+          "cur": "EUR",
+          "price": 40,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Aroma Masaj (45 dk)",
+          "cur": "EUR",
+          "price": 40,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Hot Stone Sırt",
+          "cur": "EUR",
+          "price": 40,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Spor Masajı",
+          "cur": "EUR",
+          "price": 60,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Ayak Masajı",
+          "cur": "EUR",
+          "price": 30,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Yüz Maskesi & Peeling",
+          "cur": "EUR",
+          "price": 20,
+          "unit": "adet",
+          "kesin": true
+        }
+      ]
+    },
+    {
+      "id": "icecek",
+      "ad": "İçecek & Yiyecek",
+      "urunler": [
+        {
+          "ad": "Coke",
+          "cur": "TL",
+          "price": 110,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Fanta",
+          "cur": "TL",
+          "price": 110,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Sprite",
+          "cur": "TL",
+          "price": 110,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Ice Tea",
+          "cur": "TL",
+          "price": 110,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Su 0,5 L",
+          "cur": "TL",
+          "price": 40,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Su 1,5 L",
+          "cur": "TL",
+          "price": 60,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Su 5 L",
+          "cur": "TL",
+          "price": 80,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Maden Suyu",
+          "cur": "TL",
+          "price": 40,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Meyve Suyu 1 L",
+          "cur": "TL",
+          "price": 90,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Red Bull",
+          "cur": "TL",
+          "price": 130,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Efes",
+          "cur": "TL",
+          "price": 240,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Efes Malt",
+          "cur": "TL",
+          "price": 260,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Corona",
+          "cur": "TL",
+          "price": 280,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Miller",
+          "cur": "TL",
+          "price": 280,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Kadeh Şarap",
+          "cur": "TL",
+          "price": 260,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Şişe Şarap",
+          "cur": "TL",
+          "price": 950,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Vodka / Rakı / Gin",
+          "cur": "TL",
+          "price": 290,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Tequila / Malibu / Baileys",
+          "cur": "TL",
+          "price": 310,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Cider",
+          "cur": "TL",
+          "price": 370,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Johnnie Walker Red",
+          "cur": "TL",
+          "price": 370,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Chivas Regal",
+          "cur": "TL",
+          "price": 410,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Konyak",
+          "cur": "TL",
+          "price": 360,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Sandviç",
+          "cur": "TL",
+          "price": 140,
+          "unit": "adet",
+          "kesin": true
+        }
+      ]
+    },
+    {
+      "id": "hediyelik",
+      "ad": "Hediyelik & Market",
+      "urunler": [
+        {
+          "ad": "Magnet",
+          "cur": "EUR",
+          "price": 1,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Kartpostal",
+          "cur": "TL",
+          "price": 60,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Kartpostal + Pul",
+          "cur": "TL",
+          "price": 150,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Güneş Kremi",
+          "cur": "EUR",
+          "price": 10,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Hediyelik (diğer)",
+          "cur": "TL",
+          "price": null,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
+          "ad": "Resepsiyon Market (diğer)",
+          "cur": "TL",
+          "price": null,
+          "unit": "adet",
+          "kesin": true
+        }
+      ]
+    }
+  ]
+}
