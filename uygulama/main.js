@@ -101,7 +101,8 @@ function setupUpdates(log) {
   autoUpdater.on('error', e => { set({ state: 'error', error: 'İnternete ulaşılamadı veya güncelleme sunucusuna bağlanılamadı.' }); log('güncelleme: ' + (e && e.message || e)); });
 
   const check = () => autoUpdater.checkForUpdates().catch(() => { /* çevrimdışı: durum 'error' olarak işaretlenir */ });
-  ipcMain.handle('installUpdate', () => autoUpdater.quitAndInstall(false, true));
+  // Sessiz kurulum (kurulum sihirbazı gösterilmez), bitince program yeniden açılır.
+  ipcMain.handle('installUpdate', () => autoUpdater.quitAndInstall(true, true));
   ipcMain.handle('updateStatus', () => status);
   ipcMain.handle('checkUpdate', async () => {
     if (status.state === 'downloading' || status.state === 'ready') return status;
