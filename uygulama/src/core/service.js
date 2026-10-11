@@ -51,6 +51,7 @@ class Service {
     this.tokens = new Set();
     this.seed();
     this.migrate();
+    if (this.openDay()) this.s.tx(() => this.cleanupAccounts());
   }
 
   // ---------- kurulum / ayarlar ----------
@@ -166,6 +167,20 @@ class Service {
   stopOpenItem({ itemId, nights }) {
     const it = this.s.get("SELECT * FROM account_items WHERE id=? AND kind='acik' AND void=0", [itemId]); if (!it) fail('Açık kalem bulunamadı.');
     return this.s.tx(() => { this.finalizeOpen(it, nights); return this.getState(); });
+  }
+
+  // İptallerden sonra boşalan açık hesapları kapatır: hiç kalem kalmadıysa iptal edilir (listeden kalkar),
+  // sadece ödenmiş kalemler kaldıysa "ödendi" olarak kapanır.
+  cleanupAccounts() {
+    const day = this.openDay();
+    const rows = this.s.all(`SELECT a.id,
+        SUM(CASE WHEN i.void=0 AND i.kind<>'not' THEN 1 ELSE 0 END) AS live,
+        SUM(CASE WHEN i.void=0 AND i.kind<>'not' AND i.paid_tx_id IS NULL THEN 1 ELSE 0 END) AS unpaid
+      FROM accounts a LEFT JOIN account_items i ON i.account_id=a.id WHERE a.status='open' GROUP BY a.id`);
+    for (const r of rows) {
+      if (r.live && r.unpaid) continue;
+      this.s.run('UPDATE accounts SET status=?, closed_day=?, closed_at=? WHERE id=?', [r.live ? 'closed' : 'cancelled', day ? day.date : null, nowStr(), r.id]);
+    }
   }
 
   openAccounts() { return this.s.all("SELECT * FROM accounts WHERE status='open' ORDER BY room, id").map(a => this.accountView(a)); }
@@ -463,6 +478,7 @@ class Service {
         this.s.run('UPDATE account_items SET void=1 WHERE tx_id=?', [t.id]);
       }
       this.s.run('UPDATE transactions SET void=1, voided_at=? WHERE id=?', [nowStr(), t.id]);
+      this.cleanupAccounts();
       return this.getState();
     });
   }

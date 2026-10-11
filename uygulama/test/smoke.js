@@ -150,6 +150,23 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   assert.strictEqual(st.tx.length, nTx + 2); assert.strictEqual(st.balances.EUR, e0 + 8);
   assert.strictEqual(st.accounts.find(a => a.room === '307').eurEq, 27); ok('sepette karışık ödeme: damacana nakit (8 €), klima odaya (27 €), iki kayıt');
 
+  // İptal sonrası boşalan oda hesabı listeden kalkar; açılışta takılı kalmış boş hesaplar temizlenir
+  st = svc.addSale({ room: '101', lines: [{ productId: P('Damacana').id }], payment: { method: 'ODA' }, account: { mode: 'new' } });
+  assert.ok(st.accounts.find(a => a.room === '101'));
+  st = svc.voidTx({ id: st.tx[0].id });
+  assert.ok(!st.accounts.find(a => a.room === '101')); ok('tek kalemi iptal edilen 101 hesabı listeden kalktı');
+  st = svc.addSale({ room: '102', lines: [{ productId: P('Damacana').id }, { productId: P('Kahvaltı').id }], payment: { method: 'ODA' }, account: { mode: 'new' } });
+  const saleA = st.tx[0];
+  let a2 = st.accounts.find(a => a.room === '102');
+  st = svc.addSale({ room: '102', lines: [{ productId: P('Efes').id }], payment: { method: 'ODA' }, account: { mode: 'existing', id: a2.id } });
+  a2 = st.accounts.find(a => a.id === a2.id);
+  st = svc.payAccount({ accountId: a2.id, itemIds: a2.items.filter(i => i.tx_id === saleA.id).map(i => i.id), payment: { method: 'EUR' } });
+  st = svc.voidTx({ id: st.tx.find(t => t.description.startsWith('Efes')).id });
+  assert.ok(!st.accounts.find(a => a.id === a2.id)); ok('ödenmemiş son kalem iptal edilince 102 hesabı “ödendi” olarak kapandı');
+  store.run("INSERT INTO accounts(room,opened_day,opened_at) VALUES('103','2026-01-01','x')");
+  svc = new Service(store, mkBackup(), { reportsDir, log: e => { throw e; } });
+  assert.ok(!svc.getState().accounts.find(a => a.room === '103')); ok('açılışta takılı kalmış boş hesap temizlendi');
+
   // Para bozma, gider, Cengiz Bey
   let tl0 = st.balances.TL; e0 = st.balances.EUR;
   st = svc.addExchange({ dir: 'alis', cur: 'EUR', amount: 1150, rate: 53 });
