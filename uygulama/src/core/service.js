@@ -76,6 +76,13 @@ class Service {
       if (done.includes(id)) return;
       this.s.tx(() => { fn(); done.push(id); this.setSetting('migrations', done); });
     };
+    // 1.0.10: listede olmayan satışlar için "Diğer" ürünü (tutar ve açıklama elle)
+    run('2026-10-diger-urun', () => {
+      if (this.s.get("SELECT id FROM products WHERE name='Diğer'")) return;
+      const last = this.s.get("SELECT COALESCE(MAX(sort),0) AS s FROM products WHERE category='Hizmetler'").s;
+      this.s.run('UPDATE products SET sort=sort+1 WHERE sort>?', [last]);
+      this.s.run("INSERT INTO products(name,category,currency,price,unit,active,sort) VALUES('Diğer','Hizmetler','EUR',NULL,'adet',1,?)", [last + 1]);
+    });
     // 1.0.5: "Market Resepsiyon" ve "Laundry" kategorileri; "Hediyelik & Market" → "Hediyelik"
     run('2026-10-kategoriler', () => {
       const s = this.s;
@@ -128,11 +135,39 @@ class Service {
   // Hesabın görünümü: toplamlar sadece henüz ödenmemiş kalemlerden hesaplanır.
   accountView(a) {
     const items = this.s.all('SELECT * FROM account_items WHERE account_id=? AND void=0 ORDER BY id', [a.id]);
+    for (const i of items) if (i.kind === 'acik') { i.nights = this.openNights(i); i.amount = r2(i.nights * i.unit_price); }
     const tot = { TL: 0, EUR: 0 };
     for (const i of items) if (!i.paid_tx_id) tot[i.currency] = r2((tot[i.currency] || 0) + i.amount);
     const rate = this.rates().EUR.satis;
     return { ...a, items, totals: tot, eurEq: r2(tot.EUR + tot.TL / rate), tlEq: Math.round(tot.TL + tot.EUR * rate) };
   }
+  // Açık kalemin gece sayısı: başladığı günden bugüne kadar kapatılan gün sayısı (12.10'da başlayıp 15.10'da çıkan = 3 gece)
+  openNights(i) {
+    const day = this.openDay();
+    const end = day ? day.date : '9999-12-31';
+    return this.s.get('SELECT COUNT(*) AS n FROM days WHERE closed_at IS NOT NULL AND date>=? AND date<?', [i.start_day, end]).n;
+  }
+  // Açık kalemi kapatır: gece sayısı kesinleşir, satış olarak kaydedilir (rapor bu günde sayar), hesapta sabit kalem olur.
+  finalizeOpen(item, nights) {
+    const a = this.s.get('SELECT * FROM accounts WHERE id=?', [item.account_id]);
+    const n = nights == null || nights === '' ? Math.max(1, this.openNights(item)) : num(nights, 'Gece sayısı', { allowZero: false });
+    if (!Number.isInteger(n)) fail('Gece sayısı tam sayı olmalı.');
+    const p = this.s.get('SELECT * FROM products WHERE id=?', [item.product_id]) || { name: item.description, category: 'Hizmetler' };
+    const rate = this.rates().EUR.satis, amount = r2(n * item.unit_price);
+    const amountEur = r2(item.currency === 'EUR' ? amount : amount / rate), tl = Math.round(item.currency === 'TL' ? amount : amount * rate);
+    const desc = `${p.name} ${n} ${item.unit}`;
+    const day = this.requireDay();
+    const txId = this.insertTx({ type: 'satis', room: a.room, description: `${desc} → ${a.room} hesabına ${fmt(amountEur)} € (açık kalem kesinleşti)`,
+      mv: {}, card: 0, method: 'ODA', accountId: a.id, meta: { eur: amountEur, tl, finalizes: item.id } });
+    this.s.run(`INSERT INTO sale_items(tx_id,product_id,name,category,qty,unit,currency,unit_price,list_price,amount,amount_eur,discount_note)
+      VALUES(?,?,?,?,?,?,?,?,NULL,?,?,NULL)`, [txId, item.product_id, p.name, p.category, n, item.unit, item.currency, item.unit_price, amount, amountEur]);
+    this.s.run("UPDATE account_items SET kind='satis', amount=?, description=?, tx_id=?, stop_day=? WHERE id=?", [amount, desc, txId, day.date, item.id]);
+  }
+  stopOpenItem({ itemId, nights }) {
+    const it = this.s.get("SELECT * FROM account_items WHERE id=? AND kind='acik' AND void=0", [itemId]); if (!it) fail('Açık kalem bulunamadı.');
+    return this.s.tx(() => { this.finalizeOpen(it, nights); return this.getState(); });
+  }
+
   openAccounts() { return this.s.all("SELECT * FROM accounts WHERE status='open' ORDER BY room, id").map(a => this.accountView(a)); }
 
   txRows(date) {
@@ -206,17 +241,36 @@ class Service {
 
   // ---------- satış ----------
   addSale({ room, lines, payment, account }) {
+    const write = this.prepSale({ room, lines, payment });
+    return this.s.tx(() => { write(account); return this.getState(); });
+  }
+  // Sepetteki ürünler farklı ödeme şekilleriyle (ör. biri nakit, biri oda hesabına): her ödeme şekli ayrı kayıt, hepsi tek seferde
+  addSaleBatch({ room, groups, account }) {
+    if (!Array.isArray(groups) || !groups.length) fail('Ürün seçin.');
+    const methods = groups.map(g => g.payment && g.payment.method);
+    if (new Set(methods).size !== methods.length) fail('Aynı ödeme şekli iki kez olamaz.');
+    const writers = groups.map(g => this.prepSale({ room, lines: g.lines, payment: g.payment }));
+    return this.s.tx(() => { writers.forEach(w => w(account)); return this.getState(); });
+  }
+  // Satışı doğrular ve hesaplar; döndürdüğü fonksiyon kaydı yazar (veritabanı işlemi içinde çağrılır)
+  prepSale({ room, lines, payment }) {
     if (!Array.isArray(lines) || !lines.length) fail('Ürün seçin.');
     if (room && !ROOM_RE.test(String(room))) fail('Geçersiz oda numarası.');
     const rate = this.rates().EUR.satis;
     const L = lines.map(l => {
       const p = this.s.get('SELECT * FROM products WHERE id=? AND active=1', [l.productId]);
       if (!p) fail('Ürün bulunamadı.');
+      if (l.openEnded) {
+        if (!['gece', 'gün'].includes(p.unit) || p.price == null) fail(`${p.name} için “belli değil” seçilemez.`);
+        return { p, open: true, currency: p.currency, unitPrice: p.price, desc: `${p.name} (açık, ${p.price} ${p.currency === 'EUR' ? '€' : 'TL'}/${p.unit})`, amount: 0, amountEur: 0 };
+      }
       const qty = num(l.qty || 1, 'Adet', { min: 0, allowZero: false });
-      let currency = p.currency, unitPrice = p.price, listPrice = null, note = null;
+      let currency = p.currency, unitPrice = p.price, listPrice = null, note = null, freeNote = '';
       if (p.price == null) {
         unitPrice = num(l.freeAmount, `${p.name} tutarı`, { allowZero: false });
         if (l.freeCurrency) { if (!['EUR', 'TL'].includes(l.freeCurrency)) fail('Para birimi geçersiz.'); currency = l.freeCurrency; }
+        freeNote = String(l.freeNote || '').trim();
+        if (p.name === 'Diğer' && !freeNote) fail('“Diğer” için ne olduğunu açıklamaya yazın.');
       } else if (l.overridePrice != null && l.overridePrice !== '') {
         const o = num(l.overridePrice, 'Yeni fiyat');
         if (o !== p.price) {
@@ -228,24 +282,32 @@ class Service {
       const amount = r2(unitPrice * qty);
       const amountEur = r2(currency === 'EUR' ? amount : amount / rate);
       const qtxt = qty > 1 ? (p.unit === 'adet' ? ` ×${qty}` : ` ${qty} ${p.unit}`) : (p.unit !== 'adet' ? ` ${qty} ${p.unit}` : '');
-      const desc = p.name + qtxt + (note ? ` [indirim: ${note}]` : '');
+      const desc = (freeNote ? (p.name === 'Diğer' ? freeNote : `${p.name}: ${freeNote}`) : p.name) + qtxt + (note ? ` [indirim: ${note}]` : '');
       return { p, qty, currency, unitPrice, listPrice, note, amount, amountEur, desc };
     });
+    if (L.some(l => l.open) && !(payment && payment.method === 'ODA')) fail('Gece sayısı belli olmayan kalem sadece oda hesabına yazılabilir.');
+    if (L.some(l => l.open) && !room) fail('Açık kalem için oda seçin.');
     const eur = r2(L.reduce((s, l) => s + l.amountEur, 0));
     const tl = Math.round(L.reduce((s, l) => s + (l.currency === 'TL' ? l.amount : l.amount * rate), 0));
     const linesDesc = L.map(l => l.desc).join(' + ');
 
-    return this.s.tx(() => {
+    return account => {
       let mv = {}, card = 0, accountId = null, description;
       if (payment && payment.method === 'ODA') {
         accountId = this.resolveAccount(room, account);
-        description = `${linesDesc} → ${room} hesabına ${fmt(eur)} €`;
+        description = `${linesDesc} → ${room} hesabına ${eur > 0 ? fmt(eur) + ' €' + (L.some(l => l.open) ? ' + açık kalem' : '') : 'açık olarak yazıldı'}`;
       } else {
         ({ mv, card } = this.resolvePayment(payment, eur, tl));
         description = `${linesDesc} (${PAY_LABEL[payment.method]})`;
       }
       const txId = this.insertTx({ type: 'satis', room, description, mv, card, method: payment.method, accountId, meta: { eur, tl } });
       for (const l of L) {
+        if (l.open) {
+          const day = this.requireDay();
+          this.s.run(`INSERT INTO account_items(account_id,day,created_at,kind,description,currency,amount,tx_id,unit_price,unit,start_day,product_id,open_tx_id)
+            VALUES(?,?,?,'acik',?,?,0,?,?,?,?,?,?)`, [accountId, day.date, nowStr(), l.p.name, l.currency, txId, l.unitPrice, l.p.unit, day.date, l.p.id, txId]);
+          continue;
+        }
         this.s.run(`INSERT INTO sale_items(tx_id,product_id,name,category,qty,unit,currency,unit_price,list_price,amount,amount_eur,discount_note)
           VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, [txId, l.p.id, l.p.name, l.p.category, l.qty, l.p.unit, l.currency, l.unitPrice, l.listPrice, l.amount, l.amountEur, l.note]);
         if (accountId) {
@@ -254,8 +316,7 @@ class Service {
             [accountId, day.date, nowStr(), 'satis', l.desc, l.currency, l.amount, txId]);
         }
       }
-      return this.getState();
-    });
+    };
   }
 
   // ---------- para bozma ----------
@@ -343,18 +404,27 @@ class Service {
 
   // Oda hesabından tahsilat. itemIds verilmezse ödenmemiş kalemlerin hepsi tahsil edilir.
   // Ödenmemiş kalem kalmazsa hesap kapanır; kalırsa hesap açık kalır ve kalan borç görünür.
-  payAccount({ accountId, itemIds, payment }) {
+  payAccount({ accountId, itemIds, payment, nights }) {
     const a = this.s.get("SELECT * FROM accounts WHERE id=? AND status='open'", [accountId]); if (!a) fail('Hesap bulunamadı.');
     const unpaid = this.s.all("SELECT * FROM account_items WHERE account_id=? AND void=0 AND paid_tx_id IS NULL AND kind<>'not' ORDER BY id", [a.id]);
     if (!unpaid.length) fail('Tahsil edilecek kalem yok.');
     const sel = itemIds == null ? unpaid : unpaid.filter(i => itemIds.map(Number).includes(i.id));
     if (!sel.length) fail('Tahsil edilecek kalem seçin.');
+    // Açık kalemler (ör. klima) tahsilatta gece sayısıyla kesinleşir; gece sayısı pencerede düzeltilebilir
+    const nightsOf = i => {
+      const v = nights && nights[i.id];
+      const n = v == null || v === '' ? Math.max(1, this.openNights(i)) : num(v, 'Gece sayısı', { allowZero: false });
+      if (!Number.isInteger(n)) fail('Gece sayısı tam sayı olmalı.');
+      return n;
+    };
     const rate = this.rates().EUR.satis;
-    const tot = { TL: 0, EUR: 0 }; for (const i of sel) tot[i.currency] += i.amount;
+    const tot = { TL: 0, EUR: 0 };
+    for (const i of sel) tot[i.currency] += i.kind === 'acik' ? nightsOf(i) * i.unit_price : i.amount;
     const eur = r2(tot.EUR + tot.TL / rate), tl = Math.round(tot.TL + tot.EUR * rate);
     if (eur < 0) fail('Seçilen kalemlerin toplamı eksi; düzeltmeyi diğer kalemlerle birlikte seçin.');
     const all = sel.length === unpaid.length;
     return this.s.tx(() => {
+      for (const i of sel) if (i.kind === 'acik') this.finalizeOpen(i, nightsOf(i));
       let mv = {}, card = 0;
       if (eur > 0) ({ mv, card } = this.resolvePayment(payment, eur, tl));
       const label = eur > 0 ? PAY_LABEL[payment.method] : 'ödeme yok';
@@ -380,6 +450,12 @@ class Service {
       if (t.type === 'tahsilat') {
         this.s.run('UPDATE account_items SET paid_tx_id=NULL WHERE paid_tx_id=?', [t.id]);
         this.s.run("UPDATE accounts SET status='open', closed_day=NULL, closed_at=NULL WHERE id=?", [t.account_id]);
+      } else if (t.account_id && this.s.get("SELECT id FROM account_items WHERE open_tx_id=? AND tx_id<>open_tx_id AND void=0", [t.id])) {
+        fail('Bu açık kalem kapatılmış. Önce kapanış kaydını iptal edin.');
+      } else if (t.account_id && t.meta && JSON.parse(t.meta).finalizes) {
+        const it = this.s.get('SELECT * FROM account_items WHERE id=?', [JSON.parse(t.meta).finalizes]);
+        if (it && it.paid_tx_id) fail('Bu kalemin tahsilatı yapılmış. Önce o tahsilatı iptal edin.');
+        if (it) this.s.run("UPDATE account_items SET kind='acik', amount=0, description=?, tx_id=open_tx_id, stop_day=NULL WHERE id=?", [it.description.replace(/ \d+ (gece|gün)$/, ''), it.id]);
       } else if (t.account_id) {
         const a = this.s.get('SELECT status FROM accounts WHERE id=?', [t.account_id]);
         if (a && a.status !== 'open') fail('Bu kalemin oda hesabı kapatılmış. Önce o hesabın tahsilatını iptal edin.');

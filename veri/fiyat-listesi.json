@@ -123,6 +123,13 @@
           "price": null,
           "unit": "adet",
           "kesin": true
+        },
+        {
+          "ad": "Diğer",
+          "cur": "EUR",
+          "price": null,
+          "unit": "adet",
+          "kesin": true
         }
       ]
     },

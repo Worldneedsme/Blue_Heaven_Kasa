@@ -182,7 +182,7 @@ function comboMove(d) {
 function selectProd(p) {
   selProd = p; $('sProdQ').value = p ? p.name : ''; comboHide();
   if (discOn) setDisc(false);
-  $('sQty').value = 1; $('sFree').value = '';
+  $('sQty').value = 1; $('sFree').value = ''; $('sNote').value = ''; $('sOpen').checked = false;
   if (p && p.price == null) { $('sFreeCur').value = p.currency; updSale(); $('sFree').focus(); }
   else { updSale(); if (p) { $('sQty').focus(); $('sQty').select(); } }
 }
@@ -207,42 +207,64 @@ const UNIT_LABEL = { gece: 'Gece', 'gün': 'Gün', makine: 'Makine' };
 function curLine() {
   const p = selProd; if (!p) return null;
   const qty = Math.max(1, Number($('sQty').value) || 1);
-  if (p.price == null) { const v = Number($('sFree').value) || 0; return { p, qty, cur: $('sFreeCur').value, amt: v * qty, freeAmount: v, freeCurrency: $('sFreeCur').value }; }
+  if ($('sOpen').checked && ['gece', 'gün'].includes(p.unit)) return { p, qty: 0, cur: p.currency, amt: 0, open: true };
+  if (p.price == null) { const v = Number($('sFree').value) || 0; return { p, qty, cur: $('sFreeCur').value, amt: v * qty, freeAmount: v, freeCurrency: $('sFreeCur').value, freeNote: $('sNote').value.trim() }; }
   if (discOn && $('iPrice').value !== '') { const u = Number($('iPrice').value); return { p, qty, cur: p.currency, amt: u * qty, liste: p.price * qty, overridePrice: u, note: $('iNote').value.trim() }; }
   return { p, qty, cur: p.currency, amt: p.price * qty };
 }
 const rate = () => S.rates.EUR.satis;
 const lineEUR = l => l.cur === 'EUR' ? l.amt : l.amt / rate();
 const lineTL = l => l.cur === 'TL' ? l.amt : l.amt * rate();
-const lname = l => l.p.name + (l.qty > 1 ? (l.p.unit === 'adet' ? ' ×' + l.qty : ' ' + l.qty + ' ' + l.p.unit) : '');
+const lname = l => l.open ? `${l.p.name} (açık, ${l.p.price} ${l.cur === 'EUR' ? '€' : 'TL'}/${l.p.unit})` : (l.freeNote ? (l.p.name === 'Diğer' ? l.freeNote : `${l.p.name}: ${l.freeNote}`) : l.p.name) + (l.qty > 1 ? (l.p.unit === 'adet' ? ' ×' + l.qty : ' ' + l.qty + ' ' + l.p.unit) : '');
 const discBad = l => l.liste != null && l.amt !== l.liste && !l.note;
-function allLines() { const c = curLine(); return c && c.amt ? [...pending, c] : [...pending]; }
-function totals() { const ls = allLines(); return { eur: Math.round(ls.reduce((s, l) => s + lineEUR(l), 0) * 100) / 100, tl: Math.round(ls.reduce((s, l) => s + lineTL(l), 0)) }; }
+const noteBad = l => l.p.name === 'Diğer' && !l.freeNote;
+function allLines() { const c = curLine(); return c && (c.amt || c.open) ? [...pending, c] : [...pending]; }
+const PAY_NAME = { EUR: 'Nakit €', TL: 'Nakit TL', KART: 'Kart', SPLIT: 'Bölünmüş', ODA: 'Oda hesabı' };
+// Her ürün sepete eklendiği andaki ödeme şekliyle kaydedilir; seçili (henüz eklenmemiş) ürün o anki ödeme şeklini kullanır.
+const payOf = l => l.pay || $('sPay').value;
+const sumOf = ls => ({ eur: Math.round(ls.reduce((s, l) => s + lineEUR(l), 0) * 100) / 100, tl: Math.round(ls.reduce((s, l) => s + lineTL(l), 0)) });
+function totals() { return sumOf(allLines()); }
+function payGroups() { const g = {}; allLines().forEach(l => { (g[payOf(l)] = g[payOf(l)] || []).push(l); }); return g; }
 
 function updSale() {
   if (!S || !S.day) return;
-  const p = selProd;
+  const p = selProd, cl0 = curLine();
   $('sQtyL').textContent = p && p.unit !== 'adet' ? UNIT_LABEL[p.unit] || 'Adet' : 'Adet';
   $('sFreeF').classList.toggle('hidden', !(p && p.price == null));
+  $('sNoteF').classList.toggle('hidden', !(p && p.price == null));
+  $('sOpenF').classList.toggle('hidden', !(p && p.price != null && ['gece', 'gün'].includes(p.unit)));
+  $('sQty').disabled = !!(cl0 && cl0.open);
+  $('sNoteL').textContent = p && p.name === 'Diğer' ? 'Açıklama (zorunlu)' : 'Açıklama (isteğe bağlı)';
   if (p && p.price != null) $('iSym').textContent = p.currency === 'EUR' ? '€' : 'TL';
   const { eur, tl } = totals(), cl = curLine();
   const strike = cl && cl.liste != null && cl.amt !== cl.liste ? `<span class="strike">${fmt(cl.liste)} ${cl.cur === 'EUR' ? '€' : 'TL'}</span>` : '';
-  $('sSum').innerHTML = allLines().length ? `${strike}${fmt(eur)} €<small>= ${fmt(tl)} TL</small>` : '—';
-  $('pending').innerHTML = pending.map((l, k) => `<span>${esc(lname(l))} · ${l.cur === 'EUR' ? fmt(l.amt) + ' €' : fmt(l.amt) + ' TL'}${l.liste != null && l.amt !== l.liste ? ' (indirimli)' : ''}<button data-k="${k}">×</button></span>`).join('');
-  $('split').classList.toggle('on', $('sPay').value === 'SPLIT');
-  const paid = (Number($('pEUR').value) || 0) * rate() + (Number($('pTL').value) || 0) + (Number($('pCARD').value) || 0), r = Math.round(tl - paid);
-  $('pRest').textContent = !tl ? '—' : r === 0 ? '✓' : r > 0 ? fmt(r) + ' TL' : 'fazla ' + fmt(-r) + ' TL';
+  // "Tutar": sadece o an seçili ürün. Sepette birden fazla ürün varsa toplam altta ayrıca yazılır.
+  const ce = cl && cl.amt ? Math.round(lineEUR(cl) * 100) / 100 : 0, ct = cl && cl.amt ? Math.round(lineTL(cl)) : 0;
+  $('sSum').innerHTML = cl && cl.open ? `${cl.p.price} ${cl.cur === 'EUR' ? '€' : 'TL'}<small>/ ${cl.p.unit} · açık, odaya</small>` : ce ? `${strike}${fmt(ce)} €<small>= ${fmt(ct)} TL</small>` : '—';
+  const multi = pending.length > 0 && allLines().length > 0;
+  $('sTotal').classList.toggle('hidden', !multi);
+  const groups = payGroups(), gk = Object.keys(groups);
+  if (multi) $('sTotal').innerHTML = `Toplam (${allLines().length} ürün): <b>${fmt(eur)} €</b> <span>= ${fmt(tl)} TL</span>` +
+    (gk.length > 1 ? `<div class="paybreak">${gk.map(k => `${PAY_NAME[k]}: <b>${fmt(sumOf(groups[k]).eur)} €</b>`).join(' · ')}</div>` : '');
+  $('pending').innerHTML = pending.map((l, k) => `<span class="${l.pay === 'ODA' ? 'room' : ''}">${esc(lname(l))} · ${l.open ? 'açık' : l.cur === 'EUR' ? fmt(l.amt) + ' €' : fmt(l.amt) + ' TL'}${l.liste != null && l.amt !== l.liste ? ' (indirimli)' : ''} · <b>${PAY_NAME[l.pay]}</b><button data-k="${k}">×</button></span>`).join('');
+  const splitLines = groups.SPLIT || [];
+  $('split').classList.toggle('on', splitLines.length > 0);
+  const stl = sumOf(splitLines).tl;
+  const paid = (Number($('pEUR').value) || 0) * rate() + (Number($('pTL').value) || 0) + (Number($('pCARD').value) || 0), r = Math.round(stl - paid);
+  $('pRest').textContent = !stl ? '—' : r === 0 ? '✓' : r > 0 ? fmt(r) + ' TL' : 'fazla ' + fmt(-r) + ' TL';
   $('pRest').style.color = r === 0 ? 'var(--green)' : 'var(--red)';
 }
-['sQty', 'sFree', 'sFreeCur', 'sPay', 'pEUR', 'pTL', 'pCARD', 'iPrice', 'iNote'].forEach(id => { $(id).addEventListener('input', updSale); $(id).addEventListener('change', updSale); });
-['sQty', 'sFree', 'pEUR', 'pTL', 'pCARD', 'iPrice', 'iNote'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveSale(); } }));
+['sQty', 'sFree', 'sNote', 'sFreeCur', 'sPay', 'pEUR', 'pTL', 'pCARD', 'iPrice', 'iNote'].forEach(id => { $(id).addEventListener('input', updSale); $(id).addEventListener('change', updSale); });
+['sQty', 'sFree', 'sNote', 'pEUR', 'pTL', 'pCARD', 'iPrice', 'iNote'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveSale(); } }));
 
 function setDisc(on) { discOn = on; $('disc').classList.toggle('on', on); if (!on) { $('iPrice').value = ''; $('iNote').value = ''; } updSale(); }
+$('sOpen').addEventListener('change', () => { if ($('sOpen').checked) { $('sPay').value = 'ODA'; if (!$('sRoom').value) toast('Oda seçmeyi unutmayın', true); } updSale(); });
 $('sDisc').onclick = () => { if (!selProd || selProd.price == null) return toast('Önce sabit fiyatlı bir ürün seçin', true); setDisc(true); $('iPrice').focus(); };
 $('iCancel').onclick = () => setDisc(false);
 $('pending').onclick = e => { const k = e.target.dataset.k; if (k != null) { pending.splice(+k, 1); updSale(); } };
 $('sAdd').onclick = () => {
-  const c = curLine(); if (!c) return toast('Önce ürün seçin', true); if (!c.amt) return toast('Tutar girin', true); if (discBad(c)) return toast('İndirim için açıklama yazın', true);
+  const c = curLine(); if (!c) return toast('Önce ürün seçin', true); if (!c.amt && !c.open) return toast('Tutar girin', true); if (discBad(c)) return toast('İndirim için açıklama yazın', true); if (noteBad(c)) return toast('“Diğer” için açıklama yazın', true);
+  c.pay = c.open ? 'ODA' : $('sPay').value;
   pending.push(c); selectProd(null); $('sHint').textContent = 'Ürün eklendi — sıradakini seçin veya Kaydet’e basın.'; $('sProdQ').focus();
 };
 function resetSale() { pending = []; selectProd(null); $('sRoom').value = ''; $('sPay').value = 'EUR'; ['pEUR', 'pTL', 'pCARD'].forEach(i => { $(i).value = ''; }); $('sHint').textContent = ''; updSale(); }
@@ -267,19 +289,24 @@ let busy = false;
 async function saveSale() {
   if (busy) return;
   const ls = allLines(); if (!ls.length) return toast('Ürün seçin', true);
-  const c = curLine(); if (c && !c.amt) return toast('Tutar girin', true);
+  const c = curLine(); if (c && !c.amt && !c.open) return toast('Tutar girin', true);
+  if (c && c.open && $('sPay').value !== 'ODA') { $('sPay').value = 'ODA'; updSale(); return toast('Gece sayısı belli değilse ödeme “Oda hesabına yaz” olmalı — seçildi, tekrar Kaydet’e basın', true); }
   if (ls.some(discBad)) return toast('İndirim için açıklama yazın', true);
-  const pay = $('sPay').value, room = $('sRoom').value;
-  const payment = { method: pay, eur: $('pEUR').value, tl: $('pTL').value, card: $('pCARD').value };
+  if (ls.some(noteBad)) return toast('“Diğer” için açıklama yazın', true);
+  const room = $('sRoom').value, groups = payGroups(), keys = Object.keys(groups);
+  const toLine = l => ({ productId: l.p.id, qty: l.qty, freeAmount: l.freeAmount, freeCurrency: l.freeCurrency, freeNote: l.freeNote, overridePrice: l.overridePrice, note: l.note, openEnded: !!l.open });
+  const payment = m => m === 'SPLIT' ? { method: m, eur: $('pEUR').value, tl: $('pTL').value, card: $('pCARD').value } : { method: m };
   let account = null;
   busy = true;
   try {
-    if (pay === 'ODA') {
+    if (groups.ODA) {
       if (!room) return toast('Oda hesabı için oda seçin', true);
       account = await chooseAccount(room); if (!account) return;
     }
-    const lines = ls.map(l => ({ productId: l.p.id, qty: l.qty, freeAmount: l.freeAmount, freeCurrency: l.freeCurrency, overridePrice: l.overridePrice, note: l.note }));
-    const st = await act('addSale', { room, lines, payment, account }, pay === 'ODA' ? `${room} hesabına yazıldı` : 'Satış kaydedildi');
+    const msg = keys.length > 1 ? `Kaydedildi (${keys.map(k => PAY_NAME[k]).join(' + ')})` : groups.ODA ? `${room} hesabına yazıldı` : 'Satış kaydedildi';
+    const st = keys.length === 1
+      ? await act('addSale', { room, lines: groups[keys[0]].map(toLine), payment: payment(keys[0]), account }, msg)
+      : await act('addSaleBatch', { room, groups: keys.map(k => ({ lines: groups[k].map(toLine), payment: payment(k) })), account }, msg);
     if (st) { resetSale(); $('sProdQ').focus(); }
   } catch (e) { toast(e.message, true); } finally { busy = false; }
 }
@@ -335,11 +362,20 @@ function renderAcc() {
   const L = S.accounts || [];
   $('accCount').textContent = L.length || '';
   $('accList').innerHTML = L.length ? L.map(a => `<div class="acc"><div class="ah"><span class="room">${esc(a.room)}</span><span class="since">${shortDate(a.opened_day)}’den beri · ${a.items.filter(i => i.kind !== 'not').length} kalem</span>${a.left_unpaid ? '<span class="badge-left">Çıktı, ödenmedi</span>' : ''}<span class="tot">${a.items.some(i => i.paid_tx_id) ? '<small style="margin-right:6px">kalan</small>' : ''}${fmt(a.eurEq)} €<small>= ${fmt(a.tlEq)} TL</small></span></div>
-    <table><tbody>${a.items.map(i => `<tr class="${i.paid_tx_id ? 'paid' : ''}"><td style="width:120px;color:var(--muted)">${shortDate(i.day).slice(0, 5)} ${timeOf(i.created_at)}</td><td>${esc(i.description)}${i.paid_tx_id ? ' <span class="paidtag">✓ ödendi</span>' : ''}</td><td class="n">${i.kind === 'not' ? '' : fmt(i.amount) + ' ' + SYM[i.currency]}</td></tr>`).join('')}</tbody></table>
+    <table><tbody>${a.items.map(i => `<tr class="${i.paid_tx_id ? 'paid' : ''}"><td style="width:120px;color:var(--muted)">${shortDate(i.day).slice(0, 5)} ${timeOf(i.created_at)}</td><td>${esc(i.description)}${i.kind === 'acik' ? ` <span class="opentag">açık · ${shortDate(i.start_day).slice(0, 5)}’den beri ${i.nights} ${esc(i.unit)} × ${fmt(i.unit_price)} ${SYM[i.currency]}</span> <button class="link" data-stop="${i.id}">Durdur</button>` : ''}${i.paid_tx_id ? ' <span class="paidtag">✓ ödendi</span>' : ''}</td><td class="n">${i.kind === 'not' ? '' : fmt(i.amount) + ' ' + SYM[i.currency]}</td></tr>`).join('')}</tbody></table>
     <div class="acts"><button class="hbtn main" data-close-acc="${a.id}">Tahsil et</button><button class="hbtn" data-fix="${a.id}">Düzeltme</button><button class="hbtn" data-move="${a.id}">Oda değiştir</button></div></div>`).join('')
     : '<p style="color:var(--muted)">Açık oda hesabı yok.</p>';
 }
 let accSel = null;
+$('accList').addEventListener('click', e => {
+  const sid = e.target.dataset.stop; if (!sid) return;
+  for (const a of S.accounts) { const it = a.items.find(i => i.id === Number(sid)); if (it) { stopSel = it;
+    $('stopT').textContent = `${a.room} — ${it.description} durdurulsun`;
+    $('stopS').textContent = `${shortDate(it.start_day)} tarihinden beri açık. Gün sonu sayısına göre ${it.nights} ${it.unit}. Gerekirse düzeltin; tutar hesaba sabit kalem olarak yazılır, misafir odada kalmaya devam edebilir.`;
+    $('stopL').textContent = it.unit === 'gün' ? 'Gün sayısı' : 'Gece sayısı'; $('stopN').value = Math.max(1, it.nights); $('mStop').classList.add('on'); $('stopN').focus(); } }
+});
+let stopSel = null;
+$('stopOk').onclick = async () => { const st = await act('stopOpenItem', { itemId: stopSel.id, nights: $('stopN').value }, 'Durduruldu, hesaba yazıldı'); if (st) $('mStop').classList.remove('on'); };
 $('accList').onclick = e => {
   const d = e.target.dataset; const id = Number(d.closeAcc || d.fix || d.move); if (!id) return;
   accSel = S.accounts.find(a => a.id === id); if (!accSel) return;
@@ -347,10 +383,11 @@ $('accList').onclick = e => {
     $('accT').textContent = `${accSel.room} — tahsilat`;
     const due = accSel.items.filter(i => i.kind !== 'not' && !i.paid_tx_id);
     $('accItems').innerHTML = `<table class="pick"><thead><tr><th style="width:34px"><input type="checkbox" id="accAll" checked></th><th>Kalem</th><th class="n">Tutar</th></tr></thead><tbody>` +
-      due.map(i => `<tr><td><input type="checkbox" class="accPick" value="${i.id}" checked></td><td>${esc(i.description)}</td><td class="n">${fmt(i.amount)} ${SYM[i.currency]}</td></tr>`).join('') +
+      due.map(i => `<tr><td><input type="checkbox" class="accPick" value="${i.id}" checked></td><td>${esc(i.description)}${i.kind === 'acik' ? ` <span class="opentag">açık</span> <input type="number" min="1" step="1" class="accN" data-id="${i.id}" value="${Math.max(1, i.nights)}" style="width:64px;height:30px;border:1px solid var(--line);border-radius:6px;text-align:right"> ${esc(i.unit)} × ${fmt(i.unit_price)} ${SYM[i.currency]}` : ''}</td><td class="n" data-amt="${i.id}">${fmt(i.kind === 'acik' ? Math.max(1, i.nights) * i.unit_price : i.amount)} ${SYM[i.currency]}</td></tr>`).join('') +
       `</tbody></table><div class="accSel" id="accSelTot"></div>`;
     $('accAll').onchange = () => { document.querySelectorAll('.accPick').forEach(c => { c.checked = $('accAll').checked; }); updAccSel(); };
     document.querySelectorAll('.accPick').forEach(c => { c.onchange = updAccSel; });
+    document.querySelectorAll('.accN').forEach(n => { n.oninput = updAccSel; });
     updAccSel();
     $('accPay').value = 'EUR'; $('accSplit').classList.remove('on'); ['qEUR', 'qTL', 'qCARD'].forEach(i => { $(i).value = ''; });
     $('mAcc').classList.add('on');
@@ -367,9 +404,12 @@ $('accPay').onchange = () => $('accSplit').classList.toggle('on', $('accPay').va
 function accPicked() {
   const ids = [...document.querySelectorAll('.accPick')].filter(c => c.checked).map(c => Number(c.value));
   const items = accSel.items.filter(i => ids.includes(i.id)), r = S.rates.EUR.satis;
-  const t = { TL: 0, EUR: 0 }; items.forEach(i => { t[i.currency] += i.amount; });
+  const nights = {}; document.querySelectorAll('.accN').forEach(n => { nights[n.dataset.id] = n.value; });
+  const amt = i => i.kind === 'acik' ? (Number(nights[i.id]) || 0) * i.unit_price : i.amount;
+  accSel.items.filter(i => i.kind === 'acik').forEach(i => { const c = document.querySelector(`[data-amt="${i.id}"]`); if (c) c.textContent = `${fmt(amt(i))} ${SYM[i.currency]}`; });
+  const t = { TL: 0, EUR: 0 }; items.forEach(i => { t[i.currency] += amt(i); });
   const total = document.querySelectorAll('.accPick').length;
-  return { ids, all: ids.length === total, eur: Math.round((t.EUR + t.TL / r) * 100) / 100, tl: Math.round(t.TL + t.EUR * r) };
+  return { nights, ids, all: ids.length === total, eur: Math.round((t.EUR + t.TL / r) * 100) / 100, tl: Math.round(t.TL + t.EUR * r) };
 }
 function updAccSel() {
   const p = accPicked();
@@ -380,7 +420,7 @@ function updAccSel() {
 }
 $('accOk').onclick = async () => {
   const p = accPicked();
-  const st = await act('payAccount', { accountId: accSel.id, itemIds: p.all ? null : p.ids, payment: { method: $('accPay').value, eur: $('qEUR').value, tl: $('qTL').value, card: $('qCARD').value } }, p.all ? `${accSel.room} hesabı kapatıldı` : `${accSel.room}: ${p.ids.length} kalem tahsil edildi`);
+  const st = await act('payAccount', { accountId: accSel.id, itemIds: p.all ? null : p.ids, nights: p.nights, payment: { method: $('accPay').value, eur: $('qEUR').value, tl: $('qTL').value, card: $('qCARD').value } }, p.all ? `${accSel.room} hesabı kapatıldı` : `${accSel.room}: ${p.ids.length} kalem tahsil edildi`);
   if (st) $('mAcc').classList.remove('on');
 };
 $('fixOk').onclick = async () => {

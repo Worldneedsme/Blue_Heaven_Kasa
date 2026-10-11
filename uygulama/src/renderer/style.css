@@ -187,3 +187,14 @@ kbd{font-family:inherit;font-size:12px;border:1px solid var(--line);border-botto
 .dxsum h3{margin:0 0 8px;font-size:15px}
 .dxsum td{vertical-align:top;line-height:1.5}
 .dxnet{margin-top:8px;font-size:15px;text-align:right}
+
+/* Satış: sepet toplamı */
+.saletotal{margin-top:10px;font-size:17px;background:var(--blue-soft);color:#124d73;border-radius:10px;padding:8px 14px;display:inline-block}
+.saletotal span{color:var(--muted);font-size:14px;margin-left:6px}
+
+/* Açık (gece sayısı belli olmayan) kalemler */
+.openchk{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:#9a5b06;background:#fdf0dc;border-radius:8px;padding:6px 10px;cursor:pointer;white-space:nowrap}
+.openchk input{width:16px;height:16px}
+.opentag{display:inline-block;font-size:12px;font-weight:600;color:#9a5b06;background:#fdf0dc;border-radius:999px;padding:1px 8px}
+.saletotal .paybreak{font-size:14px;color:#124d73;margin-top:2px}
+.pending span.room{background:#fdf0dc;color:#9a5b06}

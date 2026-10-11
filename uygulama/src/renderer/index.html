@@ -68,13 +68,15 @@
         <div class="f grow"><label>Ürün / Hizmet</label>
           <div class="combo"><input id="sProdQ" autocomplete="off" spellcheck="false" placeholder="Yazın veya seçin… (ör. dam)"><div class="combo-list hidden" id="sProdL"></div></div>
         </div>
-        <div class="f"><label id="sQtyL">Adet</label><input id="sQty" type="number" min="1" value="1" style="width:80px"></div>
-        <div class="f hidden" id="sFreeF"><label>Tutar</label><div style="display:flex;gap:6px"><input id="sFree" type="number" min="0" style="width:110px"><select id="sFreeCur"><option value="EUR">€</option><option value="TL">TL</option></select></div></div>
+        <div class="f"><label id="sQtyL">Adet</label><div style="display:flex;gap:8px;align-items:center"><input id="sQty" type="number" min="1" value="1" style="width:80px"><label class="openchk hidden" id="sOpenF" title="Kaç gece kalacağı belli değilse: odaya açık yazılır, geceler gün sonlarıyla sayılır"><input type="checkbox" id="sOpen"> Belli değil</label></div></div>
+        <div class="f hidden" id="sNoteF"><label id="sNoteL">Açıklama</label><input id="sNote" style="width:200px" placeholder="ne satıldı?"></div>
+        <div class="f hidden" id="sFreeF"><label>Fiyat</label><div style="display:flex;gap:6px"><input id="sFree" type="number" min="0" style="width:110px"><select id="sFreeCur"><option value="EUR">€</option><option value="TL">TL</option></select></div></div>
         <div class="f"><label>Tutar</label><div class="sum" id="sSum">—</div></div>
         <div class="f"><label>Ödeme</label><select id="sPay" style="width:170px">
           <option value="EUR">Nakit €</option><option value="TL">Nakit TL</option><option value="KART">Kart</option><option value="SPLIT">Bölünmüş</option><option value="ODA">Oda hesabına yaz</option></select></div>
         <button class="save" id="sSave">Kaydet</button>
       </div>
+      <div class="saletotal hidden" id="sTotal"></div>
       <div class="split" id="split">
         <div class="f"><label>Nakit €</label><input id="pEUR" type="number" min="0"></div>
         <div class="f"><label>Nakit TL</label><input id="pTL" type="number" min="0"></div>
@@ -197,6 +199,14 @@
   <div class="f"><label>Açıklama</label><input id="fixDesc" placeholder="örn. Efes fazla yazılmış"></div>
   <div class="f"><label>Tutar</label><div style="display:flex;gap:6px"><input id="fixAmt" type="number" style="width:140px"><select id="fixCur"><option value="TL">TL</option><option value="EUR">€</option></select></div></div>
   <div style="display:flex;gap:8px;justify-content:flex-end"><button class="hbtn" data-close>Vazgeç</button><button class="hbtn main" id="fixOk">Kaydet</button></div>
+</div></div>
+
+<!-- Açık kalemi durdur -->
+<div class="modal" id="mStop"><div class="box" style="width:min(420px,100%)">
+  <h3 id="stopT"></h3>
+  <span id="stopS" style="color:var(--muted);font-size:14px"></span>
+  <div class="f"><label id="stopL">Gece sayısı</label><input id="stopN" type="number" min="1" step="1" style="width:120px"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button class="hbtn" data-close>Vazgeç</button><button class="hbtn main" id="stopOk">Durdur ve hesaba yaz</button></div>
 </div></div>
 
 <!-- Oda değiştir -->

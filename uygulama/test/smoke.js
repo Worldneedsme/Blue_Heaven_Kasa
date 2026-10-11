@@ -25,7 +25,7 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   throws(() => svc.setup({ devir: { TL: 1 } }), /şifresi/);
   let st = svc.setup({ devir: { TL: 47894, EUR: 39, USD: 0, GBP: 0 }, pin: '2468' });
   assert.deepStrictEqual(st.balances, { TL: 47894, EUR: 39, USD: 0, GBP: 0 }); ok('kurulum + devir');
-  assert.strictEqual(st.products.length, 55); ok('fiyat listesi yüklendi (55 ürün)');
+  assert.strictEqual(st.products.length, 56); ok('fiyat listesi yüklendi (56 ürün)');
 
   // Klima 7 gece + damacana, nakit € → 71 €
   st = svc.addSale({ room: '203', lines: [{ productId: P('Klima (A/C)').id, qty: 7 }, { productId: P('Damacana').id, qty: 1 }], payment: { method: 'EUR' } });
@@ -107,8 +107,51 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   assert.ok(!st.accounts.find(a => a.id === a5.id)); assert.strictEqual(st.tx[0].card_tl, 63 * 55); assert.match(st.tx[0].description, /kapatıldı — 1 kalem/);
   ok('kalan klima kartla tahsil edildi, hesap kapandı');
 
+  // "Diğer" ürünü: açıklama zorunlu, tutar elle
+  throws(() => svc.addSale({ lines: [{ productId: P('Diğer').id, freeAmount: 15 }], payment: { method: 'EUR' } }), /açıklama/);
+  st = svc.addSale({ lines: [{ productId: P('Diğer').id, freeAmount: 15, freeNote: 'Şemsiye' }], payment: { method: 'EUR' } });
+  assert.match(st.tx[0].description, /^Şemsiye \(Nakit €\)/); ok('“Diğer” satışı (açıklama zorunlu)');
+
+  // Açık klima: gece sayısı belli değil; gün sonlarıyla sayılır, tahsilatta kesinleşir
+  throws(() => svc.addSale({ room: '204', lines: [{ productId: P('Klima (A/C)').id, openEnded: true }], payment: { method: 'EUR' } }), /oda hesabına/);
+  throws(() => svc.addSale({ room: '204', lines: [{ productId: P('Damacana').id, openEnded: true }], payment: { method: 'ODA' } }), /seçilemez/);
+  st = svc.addSale({ room: '204', lines: [{ productId: P('Klima (A/C)').id, openEnded: true }, { productId: P('Damacana').id }], payment: { method: 'ODA' } });
+  let a4 = st.accounts.find(a => a.room === '204');
+  const ac = a4.items.find(i => i.kind === 'acik');
+  assert.ok(ac && ac.nights === 0 && a4.eurEq === 8); ok('açık klima başlatıldı (henüz 0 gece)');
+  ['2026-12-01', '2026-12-02', '2026-12-03'].forEach(d => store.run('INSERT INTO days(date,opened_at,closed_at) VALUES(?,?,?)', [d, 'x', 'x']));
+  store.run('UPDATE account_items SET start_day=? WHERE id=?', ['2026-12-01', ac.id]);
+  store.run("UPDATE days SET date='2026-12-04' WHERE closed_at IS NULL");
+  store.run("UPDATE transactions SET day='2026-12-04' WHERE day=?", [st.day.date]);
+  a4 = svc.getState().accounts.find(a => a.id === a4.id);
+  assert.strictEqual(a4.items.find(i => i.id === ac.id).nights, 3); assert.strictEqual(a4.eurEq, 8 + 27); ok('3 gün sonu sonra 3 gece = 27 €');
+  throws(() => svc.payAccount({ accountId: a4.id, itemIds: null, payment: { method: 'SPLIT', eur: 1 } }), /tutmuyor/);
+  assert.strictEqual(svc.getState().accounts.find(a => a.id === a4.id).items.find(i => i.id === ac.id).kind, 'acik'); ok('hatalı ödemede klima açık kaldı');
+  st = svc.payAccount({ accountId: a4.id, itemIds: null, payment: { method: 'KART' }, nights: { [ac.id]: 5 } });
+  assert.ok(!st.accounts.find(a => a.id === a4.id)); assert.strictEqual(st.tx[0].card_tl, (8 + 45) * svc.rates().EUR.satis);
+  const fin = st.tx.find(t => t.description.startsWith('Klima (A/C) 5 gece'));
+  assert.ok(fin, 'kapanış satışı kaydedilmeli'); ok('çıkışta gece sayısı 5 yapılıp tahsil edildi (45 €), satış kaydı oluştu');
+  st = svc.voidTx({ id: st.tx[0].id }); st = svc.voidTx({ id: fin.id });
+  a4 = st.accounts.find(a => a.id === a4.id);
+  assert.strictEqual(a4.items.find(i => i.id === ac.id).kind, 'acik'); ok('tahsilat ve kapanış iptali klimayı yeniden açık yaptı');
+  st = svc.stopOpenItem({ itemId: ac.id, nights: 2 });
+  a4 = st.accounts.find(a => a.id === a4.id);
+  assert.strictEqual(a4.eurEq, 8 + 18); ok('klima durduruldu (2 gece), misafir kalmaya devam ediyor');
+  st = svc.closeAccount({ accountId: a4.id, payment: { method: 'EUR' } });
+  store.run("UPDATE days SET date=? WHERE closed_at IS NULL", [svc.getState().today]);
+  store.run("UPDATE transactions SET day=? WHERE day='2026-12-04'", [svc.getState().today]);
+  store.run("DELETE FROM days WHERE date IN ('2026-12-01','2026-12-02','2026-12-03')");
+
+  // Sepette farklı ödeme şekilleri: damacana nakit €, klima 3 gece oda hesabına — tek seferde, iki ayrı kayıt
+  let e0 = st.balances.EUR; const nTx = st.tx.length;
+  throws(() => svc.addSaleBatch({ room: '307', groups: [{ lines: [{ productId: P('Damacana').id }], payment: { method: 'EUR' } }, { lines: [{ productId: P('Kahvaltı').id }], payment: { method: 'SPLIT', eur: 1 } }] }), /tutmuyor/);
+  assert.strictEqual(svc.getState().tx.length, nTx, 'hata olunca hiçbiri kaydedilmemeli');
+  st = svc.addSaleBatch({ room: '307', groups: [{ lines: [{ productId: P('Damacana').id }], payment: { method: 'EUR' } }, { lines: [{ productId: P('Klima (A/C)').id, qty: 3 }], payment: { method: 'ODA' } }], account: { mode: 'new' } });
+  assert.strictEqual(st.tx.length, nTx + 2); assert.strictEqual(st.balances.EUR, e0 + 8);
+  assert.strictEqual(st.accounts.find(a => a.room === '307').eurEq, 27); ok('sepette karışık ödeme: damacana nakit (8 €), klima odaya (27 €), iki kayıt');
+
   // Para bozma, gider, Cengiz Bey
-  let tl0 = st.balances.TL, e0 = st.balances.EUR;
+  let tl0 = st.balances.TL; e0 = st.balances.EUR;
   st = svc.addExchange({ dir: 'alis', cur: 'EUR', amount: 1150, rate: 53 });
   assert.strictEqual(st.balances.TL, tl0 - 60950); assert.strictEqual(st.balances.EUR, e0 + 1150);
   st = svc.addExchange({ dir: 'satis', cur: 'EUR', amount: 5, rate: 55 });
