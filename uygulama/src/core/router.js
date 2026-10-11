@@ -5,7 +5,7 @@ const { UserError } = require('./service');
 const METHODS = [
   'getState', 'setup', 'addSale', 'addExchange', 'addExpense', 'addOwner', 'addAvans', 'correctAccount', 'moveAccount',
   'closeAccount', 'openAccountsForRoom', 'voidTx', 'closeDay', 'listClosedDays', 'getDayDetail', 'verifyPin', 'lock',
-  'report', 'getSettings', 'setRates', 'saveProduct', 'changePin', 'setBackupDir2', 'backupNow', 'restoreBackup',
+  'report', 'getSettings', 'setRates', 'saveProduct', 'changePin', 'setBackupDir2', 'backupNow', 'restoreBackup', 'resetAll',
 ];
 
 function makeRouter(svc, log = console.error) {

@@ -98,6 +98,9 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   tl0 = st.balances.TL;
   st = svc.addOwner({ tlOut: 5000 });
   assert.strictEqual(st.balances.TL, tl0 - 5000); assert.match(st.tx[0].description, /5\.000 TL aldı/); ok('Cengiz Bey TL aldı');
+  e0 = st.balances.EUR;
+  st = svc.addOwner({ eurIn: 500, eur: 200 });
+  assert.strictEqual(st.balances.EUR, e0 + 300); assert.match(st.tx[0].description, /500 € getirdi, 200 € aldı/); ok('Cengiz Bey € getirdi');
 
   // Rapor şifresi
   assert.strictEqual(svc.verifyPin('123456').ok, false);
@@ -157,6 +160,19 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   const r3 = svc.report({ token: svc.verifyPin('4321').token, period: 'day' });
   assert.ok(r3.cat['Market Resepsiyon'] > 0 && r3.cat['Laundry'] > 0 && !r3.cat['İçecek & Yiyecek']);
   ok('eski veritabanı yeni kategorilere taşındı (geçmiş satışlar dahil)');
+
+  // Sıfırlama: kayıtlar silinir, ürün/fiyat/kur kalır, kurulum ekranına dönülür, önce yedek alınır
+  const tR = svc.verifyPin('4321').token;
+  const nBk = svc.getSettings({ token: tR }).backups.length;
+  const prodCount = svc.getState().products.length;
+  st = svc.resetAll({ token: tR });
+  assert.ok(st.setupNeeded); assert.strictEqual(svc.listClosedDays().length, 0);
+  assert.ok(!svc.verifyPin('4321').ok);
+  st = svc.setup({ devir: { TL: 1000 }, pin: '5555' });
+  assert.strictEqual(st.balances.TL, 1000); assert.strictEqual(st.tx.length, 0); assert.strictEqual(st.accounts.length, 0);
+  assert.strictEqual(st.products.length, prodCount); assert.strictEqual(st.rates.EUR.satis, 56);
+  assert.ok(svc.getSettings({ token: svc.verifyPin('5555').token }).backups.length > nBk);
+  ok('verileri sıfırla → kurulum ekranı, ürünler ve kurlar korundu, önce yedek alındı');
 
   console.log(`\nTüm testler geçti (${step}).`);
   fs.rmSync(dir, { recursive: true, force: true });

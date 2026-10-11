@@ -279,16 +279,17 @@ class Service {
   }
 
   // ---------- Cengiz Bey ----------
-  addOwner({ tl, tlOut, eur, usd, gbp }) {
-    const v = { TL: num(tl || 0, 'Getirdiği TL'), TLOUT: num(tlOut || 0, 'Aldığı TL'), EUR: num(eur || 0, '€'), USD: num(usd || 0, '$'), GBP: num(gbp || 0, '£') };
-    if (!v.TL && !v.TLOUT && !v.EUR && !v.USD && !v.GBP) fail('Tutar girin.');
+  addOwner({ tl, tlOut, eurIn, eur, usd, gbp }) {
+    const v = { TL: num(tl || 0, 'Getirdiği TL'), TLOUT: num(tlOut || 0, 'Aldığı TL'), EURIN: num(eurIn || 0, 'Getirdiği €'), EUR: num(eur || 0, '€'), USD: num(usd || 0, '$'), GBP: num(gbp || 0, '£') };
+    if (!v.TL && !v.TLOUT && !v.EURIN && !v.EUR && !v.USD && !v.GBP) fail('Tutar girin.');
     const p = [];
     if (v.TL) p.push(`${fmt(v.TL)} TL getirdi`);
+    if (v.EURIN) p.push(`${fmt(v.EURIN)} € getirdi`);
     if (v.TLOUT) p.push(`${fmt(v.TLOUT)} TL aldı`);
     for (const c of ['EUR', 'USD', 'GBP']) if (v[c]) p.push(`${fmt(v[c])} ${SYM[c]} aldı`);
     return this.s.tx(() => {
-      this.insertTx({ type: 'patron', description: 'Cengiz Bey: ' + p.join(', '), mv: { TL: v.TL - v.TLOUT, EUR: -v.EUR, USD: -v.USD, GBP: -v.GBP },
-        meta: { tlIn: v.TL, tlOut: v.TLOUT } });
+      this.insertTx({ type: 'patron', description: 'Cengiz Bey: ' + p.join(', '), mv: { TL: v.TL - v.TLOUT, EUR: v.EURIN - v.EUR, USD: -v.USD, GBP: -v.GBP },
+        meta: { tlIn: v.TL, tlOut: v.TLOUT, eurIn: v.EURIN, eurOut: v.EUR } });
       return this.getState();
     });
   }
@@ -430,7 +431,7 @@ class Service {
       label = pre;
     }
     const A = { label, sale: 0, cnt: 0, cat: {}, prod: {}, pay: { EUR: 0, TL: 0, KART: 0, ODA: 0 }, dx: {}, gider: {}, giderTL: 0,
-      owner: { TL: 0, TLOUT: 0, EUR: 0, USD: 0, GBP: 0 }, cardTL: 0, disc: 0, discN: 0, avans: 0, daily: {}, days: dates.length };
+      owner: { TL: 0, TLOUT: 0, EURIN: 0, EUR: 0, USD: 0, GBP: 0 }, cardTL: 0, disc: 0, discN: 0, avans: 0, daily: {}, days: dates.length };
     if (!dates.length) return { ...A, openAccounts: 0 };
     const ph = dates.map(() => '?').join(',');
     const txs = this.s.all(`SELECT * FROM transactions WHERE void=0 AND day IN (${ph})`, dates);
@@ -464,7 +465,7 @@ class Service {
         A.gider[t.category] = (A.gider[t.category] || 0) + tlEq; A.giderTL += tlEq;
       } else if (t.type === 'patron') {
         if (meta.tlIn != null) { A.owner.TL += meta.tlIn; A.owner.TLOUT += meta.tlOut; } else A.owner.TL += t.tl;
-        A.owner.EUR -= t.eur; A.owner.USD -= t.usd; A.owner.GBP -= t.gbp;
+        if (meta.eurOut != null) { A.owner.EURIN += meta.eurIn; A.owner.EUR += meta.eurOut; } else A.owner.EUR -= t.eur; A.owner.USD -= t.usd; A.owner.GBP -= t.gbp;
       } else if (t.type === 'avans') {
         A.avans += -(t.tl) - t.eur * sr;
       }
@@ -523,6 +524,18 @@ class Service {
     return r;
   }
   backupNow({ token }) { this.requireToken(token); this.makeBackup('elle'); return this.getSettings({ token }); }
+  // Tüm kasa kayıtlarını siler ve programı ilk kurulum (devir + şifre) ekranına döndürür.
+  // Ürünler, fiyatlar ve kurlar korunur. Silmeden önce otomatik yedek alınır.
+  resetAll({ token }) {
+    this.requireToken(token);
+    this.makeBackup('sifirlama-oncesi');
+    this.s.tx(() => {
+      for (const t of ['account_items', 'accounts', 'sale_items', 'transactions', 'days']) this.s.run(`DELETE FROM ${t}`);
+      this.s.run("DELETE FROM settings WHERE key IN ('pin_hash','last_backup')");
+    });
+    this.tokens.clear();
+    return this.getState();
+  }
   restoreBackup({ token, name }) {
     this.requireToken(token);
     this.makeBackup('geri-yukleme-oncesi');

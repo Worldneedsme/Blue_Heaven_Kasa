@@ -282,10 +282,10 @@ $('gSave').onclick = saveExp; enterTo(['gDesc', 'gAmt'], saveExp);
 
 /* ================= CENGİZ BEY ================= */
 async function saveOwner() {
-  const st = await act('addOwner', { tl: $('cTL').value, tlOut: $('cTLOUT').value, eur: $('cEUR').value, usd: $('cUSD').value, gbp: $('cGBP').value }, 'Kaydedildi');
-  if (st) ['cTL', 'cTLOUT', 'cEUR', 'cUSD', 'cGBP'].forEach(k => { $(k).value = ''; });
+  const st = await act('addOwner', { tl: $('cTL').value, eurIn: $('cEURIN').value, tlOut: $('cTLOUT').value, eur: $('cEUR').value, usd: $('cUSD').value, gbp: $('cGBP').value }, 'Kaydedildi');
+  if (st) ['cTL', 'cEURIN', 'cTLOUT', 'cEUR', 'cUSD', 'cGBP'].forEach(k => { $(k).value = ''; });
 }
-$('cSave').onclick = saveOwner; enterTo(['cTL', 'cTLOUT', 'cEUR', 'cUSD', 'cGBP'], saveOwner);
+$('cSave').onclick = saveOwner; enterTo(['cTL', 'cEURIN', 'cTLOUT', 'cEUR', 'cUSD', 'cGBP'], saveOwner);
 
 /* ================= İPTAL ================= */
 $('tx').onclick = async e => {
@@ -431,7 +431,7 @@ async function openReport(per) {
     ['Kartla gelen', fmt(A.cardTL) + ' TL', 'satış ve oda tahsilatları'],
     ['Bozulan €', fmt(eurDx.al) + ' €', `${fmt(eurDx.alTL)} TL ödendi` + (eurDx.sa ? ` · ters: ${fmt(eurDx.sa)} €` : '')],
     ['Giderler', fmt(Math.round(A.giderTL)) + ' TL', `${Object.keys(A.gider).length} kategori`],
-    ['Cengiz Bey', fmt(A.owner.TL) + ' TL getirdi', `${ownerOut} aldı`],
+    ['Cengiz Bey', fmt(A.owner.TL) + ' TL getirdi' + (A.owner.EURIN ? ` · ${fmt(A.owner.EURIN)} €` : ''), `${ownerOut} aldı`],
     ['İndirimler', fmt(Math.round(A.disc)) + ' €', `${A.discN} indirimli satış`],
     ['Açık oda hesapları', fmt(A.openAccounts) + ' €', `${A.openAccountCount || 0} oda (şu an)`],
   ].map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
@@ -524,6 +524,16 @@ $('pwOk').onclick = async () => {
 $('bkNow').onclick = async () => { try { SET = await api('backupNow', { token }); renderSettings(); toast('Yedek alındı'); } catch (e) { toast(e.message, true); } };
 $('bkDir').onclick = async () => { const dir = await window.kasa.pickDir(); if (!dir) return; try { SET = await api('setBackupDir2', { token, dir }); renderSettings(); toast('İkinci yedek klasörü ayarlandı'); } catch (e) { toast(e.message, true); } };
 $('bkDirClear').onclick = async () => { try { SET = await api('setBackupDir2', { token, dir: null }); renderSettings(); } catch (e) { toast(e.message, true); } };
+$('resetAll').onclick = async () => {
+  if (!await askConfirm('Tüm veriler sıfırlansın mı?', 'Bütün işlemler, günler, devirler ve oda hesapları silinecek. Program ilk kurulum ekranına dönecek.\n\nÜrünler, fiyatlar ve kurlar korunur. Silmeden önce yedek alınır.', 'Devam')) return;
+  if (!await askConfirm('Emin misiniz?', 'Bu işlemden sonra kasa devri ve şifre yeniden girilecek.', 'Evet, sıfırla')) return;
+  try {
+    await api('resetAll', { token });
+    token = null; $('set').classList.remove('on'); $('main').classList.add('hidden');
+    ['suTL', 'suEUR', 'suUSD', 'suGBP', 'suPin', 'suPin2'].forEach(i => { $(i).value = ''; });
+    toast('Veriler sıfırlandı'); boot();
+  } catch (e) { toast(e.message, true); }
+};
 $('bkList').onclick = async e => {
   const name = e.target.dataset.restore; if (!name) return;
   if (!await askConfirm('Yedek geri yüklensin mi?', `${name}\n\nŞu anki veriler bu yedekteki haline döner. Geri yüklemeden önce mevcut durumun da yedeği alınır.`, 'Devam')) return;
