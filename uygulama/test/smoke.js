@@ -140,6 +140,24 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   svc.changePin({ token: t2, oldPin: '2468', newPin: '4321' });
   assert.ok(svc.verifyPin('4321').ok && !svc.verifyPin('2468').ok); ok('şifre değiştirildi');
 
+  // Kategori taşıma: eski (1.0.4) düzendeki bir veritabanı yeni kategorilere geçer
+  const cokeId = P('Coke').id;
+  svc.addSale({ lines: [{ productId: cokeId }, { productId: P('Çamaşır (Laundry)').id }], payment: { method: 'TL' } });
+  store.run("UPDATE products SET category='İçecek & Yiyecek' WHERE category='Market Resepsiyon' AND name NOT IN ('Kartpostal','Kartpostal + Pul','Resepsiyon Market (diğer)')");
+  store.run("UPDATE products SET category='Hediyelik & Market' WHERE category IN ('Hediyelik','Market Resepsiyon')");
+  store.run("UPDATE products SET category='Hizmetler' WHERE category='Laundry'");
+  store.run("UPDATE sale_items SET category=(SELECT category FROM products p WHERE p.id=sale_items.product_id)");
+  store.run("UPDATE settings SET value=? WHERE key='categories'", [JSON.stringify(['Hizmetler', 'Masaj', 'İçecek & Yiyecek', 'Hediyelik & Market'])]);
+  store.run("DELETE FROM settings WHERE key='migrations'");
+  svc = new Service(store, mkBackup());
+  const cat = n => svc.getState().products.find(p => p.name === n).category;
+  assert.strictEqual(cat('Coke'), 'Market Resepsiyon'); assert.strictEqual(cat('Kartpostal + Pul'), 'Market Resepsiyon');
+  assert.strictEqual(cat('Magnet'), 'Hediyelik'); assert.strictEqual(cat('Çamaşır (Laundry)'), 'Laundry');
+  assert.deepStrictEqual(svc.getState().categories, ['Hizmetler', 'Masaj', 'Market Resepsiyon', 'Laundry', 'Hediyelik']);
+  const r3 = svc.report({ token: svc.verifyPin('4321').token, period: 'day' });
+  assert.ok(r3.cat['Market Resepsiyon'] > 0 && r3.cat['Laundry'] > 0 && !r3.cat['İçecek & Yiyecek']);
+  ok('eski veritabanı yeni kategorilere taşındı (geçmiş satışlar dahil)');
+
   console.log(`\nTüm testler geçti (${step}).`);
   fs.rmSync(dir, { recursive: true, force: true });
 })().catch(e => { console.error('\n✗ TEST HATASI:', e.message); console.error(e.stack); process.exit(1); });

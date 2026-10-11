@@ -99,6 +99,7 @@ const rowHTML = (x, editable) => `<tr class="${x.void ? 'void' : ''}"><td>${time
 function render() {
   if (!S || !S.day) return;
   $('today').textContent = longDate(S.day.date);
+  $('verTag').textContent = S.version ? 'v' + S.version : '';
   document.querySelectorAll('.dateRo').forEach(e => { e.textContent = shortDate(S.day.date); });
   for (const c of CURS) $('b' + c).textContent = fmt(S.balances[c]) + ' ' + SYM[c];
   $('bCARD').textContent = fmt(S.cardToday) + ' TL';

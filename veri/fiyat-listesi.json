@@ -1,5 +1,5 @@
 {
-  "_not": "price=null -> serbest tutar (her seferinde elle girilir). unit: adet | gece | gun. Kaynak: Excel kayıtları, otel menüleri (fotoğraf) ve kullanıcı bilgisi, 2026-10-11. 'kesin': false olanlar teyit bekliyor. Güncelleme 2026-10-11: safe 3€/gün, havlu 1€/gün veya 7€/hafta, güneş kremi 10€, kurlar onaylandı; Face Care listeye alınmadı; çamaşır 600 TL / makine (2 makine = 1200 TL). Güncelleme 2026-10-11 (Ağustos analizi sonrası): safe 2€/gün; çocuk kahvaltısı 5€; havlu satışı 9€; bisiklet 6€; yüz maskesi & peeling 20€ teyitli.",
+  "_not": "price=null -> serbest tutar (her seferinde elle girilir). unit: adet | gece | gun. Kaynak: Excel kayıtları, otel menüleri (fotoğraf) ve kullanıcı bilgisi, 2026-10-11. 'kesin': false olanlar teyit bekliyor. Güncelleme 2026-10-11: safe 3€/gün, havlu 1€/gün veya 7€/hafta, güneş kremi 10€, kurlar onaylandı; Face Care listeye alınmadı; çamaşır 600 TL / makine (2 makine = 1200 TL). Güncelleme 2026-10-11 (Ağustos analizi sonrası): safe 2€/gün; çocuk kahvaltısı 5€; havlu satışı 9€; bisiklet 6€; yüz maskesi & peeling 20€ teyitli. Güncelleme 2026-10-11: İçecek & Yiyecek + kartpostal/pul + resepsiyon market → 'Market Resepsiyon'; çamaşır → 'Laundry'; 'Hediyelik & Market' → 'Hediyelik' (magnet, güneş kremi, hediyelik diğer).",
   "kurlar": {
     "EUR": {
       "alis": 53,
@@ -94,13 +94,6 @@
           "cur": "EUR",
           "price": 6,
           "unit": "adet",
-          "kesin": true
-        },
-        {
-          "ad": "Çamaşır (Laundry)",
-          "cur": "TL",
-          "price": 600,
-          "unit": "makine",
           "kesin": true
         },
         {
@@ -210,8 +203,8 @@
       ]
     },
     {
-      "id": "icecek",
-      "ad": "İçecek & Yiyecek",
+      "id": "market",
+      "ad": "Market Resepsiyon",
       "urunler": [
         {
           "ad": "Coke",
@@ -373,19 +366,6 @@
           "price": 140,
           "unit": "adet",
           "kesin": true
-        }
-      ]
-    },
-    {
-      "id": "hediyelik",
-      "ad": "Hediyelik & Market",
-      "urunler": [
-        {
-          "ad": "Magnet",
-          "cur": "EUR",
-          "price": 1,
-          "unit": "adet",
-          "kesin": true
         },
         {
           "ad": "Kartpostal",
@@ -402,6 +382,39 @@
           "kesin": true
         },
         {
+          "ad": "Resepsiyon Market (diğer)",
+          "cur": "TL",
+          "price": null,
+          "unit": "adet",
+          "kesin": true
+        }
+      ]
+    },
+    {
+      "id": "laundry",
+      "ad": "Laundry",
+      "urunler": [
+        {
+          "ad": "Çamaşır (Laundry)",
+          "cur": "TL",
+          "price": 600,
+          "unit": "makine",
+          "kesin": true
+        }
+      ]
+    },
+    {
+      "id": "hediyelik",
+      "ad": "Hediyelik",
+      "urunler": [
+        {
+          "ad": "Magnet",
+          "cur": "EUR",
+          "price": 1,
+          "unit": "adet",
+          "kesin": true
+        },
+        {
           "ad": "Güneş Kremi",
           "cur": "EUR",
           "price": 10,
@@ -410,13 +423,6 @@
         },
         {
           "ad": "Hediyelik (diğer)",
-          "cur": "TL",
-          "price": null,
-          "unit": "adet",
-          "kesin": true
-        },
-        {
-          "ad": "Resepsiyon Market (diğer)",
           "cur": "TL",
           "price": null,
           "unit": "adet",

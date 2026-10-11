@@ -45,6 +45,7 @@ class Service {
     this.version = opts.version || '';
     this.tokens = new Set();
     this.seed();
+    this.migrate();
   }
 
   // ---------- kurulum / ayarlar ----------
@@ -63,6 +64,34 @@ class Service {
       }
     });
   }
+  // Güncellemeyle gelen tek seferlik veri düzenlemeleri. Her adım bir kez çalışır ve "migrations" ayarına işlenir.
+  migrate() {
+    const done = this.setting('migrations') || [];
+    const run = (id, fn) => {
+      if (done.includes(id)) return;
+      this.s.tx(() => { fn(); done.push(id); this.setSetting('migrations', done); });
+    };
+    // 1.0.5: "Market Resepsiyon" ve "Laundry" kategorileri; "Hediyelik & Market" → "Hediyelik"
+    run('2026-10-kategoriler', () => {
+      const s = this.s;
+      const MOVE = ['Kartpostal', 'Kartpostal + Pul', 'Resepsiyon Market (diğer)'];
+      s.run("UPDATE products SET category='Market Resepsiyon' WHERE category='İçecek & Yiyecek'");
+      s.run(`UPDATE products SET category='Market Resepsiyon' WHERE category='Hediyelik & Market' AND name IN (${MOVE.map(() => '?').join(',')})`, MOVE);
+      s.run("UPDATE products SET category='Hediyelik' WHERE category='Hediyelik & Market'");
+      s.run("UPDATE products SET category='Laundry' WHERE name='Çamaşır (Laundry)'");
+      // Geçmiş satışlar da raporda yeni kategoride görünsün
+      s.run('UPDATE sale_items SET category=(SELECT p.category FROM products p WHERE p.id=sale_items.product_id) WHERE product_id IS NOT NULL');
+      const base = ['Hizmetler', 'Masaj', 'Market Resepsiyon', 'Laundry', 'Hediyelik'];
+      const extra = (this.setting('categories') || []).filter(c => !base.includes(c) && c !== 'İçecek & Yiyecek' && c !== 'Hediyelik & Market');
+      const cats = base.concat(extra);
+      this.setSetting('categories', cats);
+      // Ürün listesi kategori sırasına göre dizilsin
+      const rows = s.all('SELECT id, category, sort FROM products ORDER BY sort, id');
+      rows.sort((a, b) => (cats.indexOf(a.category) - cats.indexOf(b.category)) || (a.sort - b.sort));
+      rows.forEach((r, i) => s.run('UPDATE products SET sort=? WHERE id=?', [i, r.id]));
+    });
+  }
+
   setting(key) { const r = this.s.get('SELECT value FROM settings WHERE key=?', [key]); return r ? JSON.parse(r.value) : null; }
   setSetting(key, val) { this.s.run('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', [key, JSON.stringify(val)]); }
   rates() { return this.setting('rates'); }
