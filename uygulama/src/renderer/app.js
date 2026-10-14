@@ -466,17 +466,14 @@ $('aSave').onclick = async () => {
 
 // Açık / kapanan hesaplar arasında geçiş; kapananlar sadece görüntülenir
 let accMode = 'open';
-async function renderClosed() {
-  try { $('caList').innerHTML = closedAccHTML(await api('closedAccounts', { room: $('caRoom').value })); } catch (e) { toast(e.message, true); }
-}
+const closedAcc = mountClosedAcc({ call: api, toast });
 $('accSeg').onclick = e => {
   const b = e.target.closest('[data-m]'); if (!b) return; accMode = b.dataset.m;
   [...$('accSeg').children].forEach(x => x.classList.toggle('on', x === b));
   const cl = accMode === 'closed';
   ['caF', 'caHint', 'caList'].forEach(id => $(id).classList.toggle('hidden', !cl)); $('accList').classList.toggle('hidden', cl);
-  if (cl) renderClosed();
+  if (cl) closedAcc.latest();
 };
-$('caRoom').onchange = renderClosed;
 
 /* ================= GEÇMİŞ GÜNLER ================= */
 let hKey = null, hKeys = [];

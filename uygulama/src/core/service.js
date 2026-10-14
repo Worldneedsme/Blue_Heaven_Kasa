@@ -251,9 +251,13 @@ class Service {
   }
 
   // Kapanan oda hesapları (en yeni önce): bütün kalemler, tahsilatlar ve toplamlar. Sadece görüntüleme içindir.
-  closedAccounts({ room, limit } = {}) {
-    const r = String(room || '').trim(), lim = Math.min(500, Math.max(1, Number(limit) || 100));
-    const rows = this.s.all(`SELECT * FROM accounts WHERE status='closed'${r ? ' AND room=?' : ''} ORDER BY closed_at DESC, id DESC LIMIT ?`, r ? [r, lim] : [lim]);
+  // Gün verilirse o gün kapananlar, oda verilirse o odanın bütün kapanan hesapları gelir.
+  closedAccounts({ room, day, limit } = {}) {
+    const r = String(room || '').trim(), d = String(day || '').trim(), lim = Math.min(500, Math.max(1, Number(limit) || 100));
+    const where = ["status='closed'"], args = [];
+    if (r) { where.push('room=?'); args.push(r); }
+    if (d) { where.push('closed_day=?'); args.push(d); }
+    const rows = this.s.all(`SELECT * FROM accounts WHERE ${where.join(' AND ')} ORDER BY closed_at DESC, id DESC LIMIT ?`, [...args, lim]);
     return rows.map(a => {
       const items = this.s.all('SELECT * FROM account_items WHERE account_id=? AND void=0 ORDER BY id', [a.id]);
       const payments = this.s.all("SELECT * FROM transactions WHERE type='tahsilat' AND account_id=? AND void=0 ORDER BY id", [a.id])
@@ -262,6 +266,10 @@ class Service {
       for (const i of items) if (i.kind !== 'not') totals[i.currency] = r2(totals[i.currency] + i.amount);
       return { ...a, items, payments, totals, paidEur: r2(payments.reduce((s, p) => s + p.eurEq, 0)) };
     });
+  }
+  // Hesap kapanan günler (en yeni önce) ve o gün kapanan hesap sayısı
+  closedAccountDays() {
+    return this.s.all("SELECT closed_day AS day, COUNT(*) AS n FROM accounts WHERE status='closed' AND closed_day IS NOT NULL GROUP BY closed_day ORDER BY closed_day DESC");
   }
   openAccountsForRoom(room) {
     return this.s.all("SELECT * FROM accounts WHERE status='open' AND room=? ORDER BY id DESC", [room]).map(a => this.accountView(a));

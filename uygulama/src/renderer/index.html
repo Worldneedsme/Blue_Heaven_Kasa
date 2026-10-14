@@ -144,7 +144,8 @@
     <!-- ODA HESAPLARI -->
     <div data-form="hesap" class="hidden">
       <div class="accbar"><div class="seg" id="accSeg"><button data-m="open" class="on">Açık hesaplar</button><button data-m="closed">Kapanan hesaplar</button></div>
-        <div class="f hidden" id="caF"><select id="caRoom" style="width:150px"></select></div><span class="hint hidden" id="caHint" style="margin:0">Ayrıntı için hesaba tıklayın</span></div>
+        <div class="hidden" id="caF" style="display:contents"><div class="hnav hidden" id="caNav" style="margin:0"><button class="hbtn" id="caOlder">◀</button><select id="caDay"></select><button class="hbtn" id="caNewer">▶</button></div><select id="caRoom" style="width:150px"></select></div></div>
+      <div class="hint hidden" id="caHint" style="margin:0 0 12px"><b id="caSum"></b> · Ayrıntı için hesaba tıklayın</div>
       <div id="accList"></div>
       <div id="caList" class="hidden"></div>
     </div>

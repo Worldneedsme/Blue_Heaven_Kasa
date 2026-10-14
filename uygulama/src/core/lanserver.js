@@ -7,7 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const READ_METHODS = ['viewState', 'report', 'listClosedDays', 'getDayDetail', 'listReports', 'closedAccounts'];
+const READ_METHODS = ['viewState', 'report', 'listClosedDays', 'getDayDetail', 'listReports', 'closedAccounts', 'closedAccountDays'];
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png' };
 const STATIC = { '/': 'mudur.html', '/mudur.html': 'mudur.html', '/mudur.js': 'mudur.js', '/style.css': 'style.css', '/logo.png': 'logo.png', '/kapanan.js': 'kapanan.js' };
 const COOKIE = 'bhk_cihaz';

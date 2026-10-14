@@ -134,7 +134,10 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   { const ca = svc.closedAccounts({ room: a4.room }).find(a => a.id === a4.id);
     assert.ok(ca && ca.payments.length === 1 && ca.payments[0].method === 'KART' && ca.paidEur === 8 + 45);
     assert.ok(ca.items.some(i => i.description === 'Klima (A/C) 5 gece'));
-    assert.ok(!svc.closedAccounts({ room: '999' }).some(a => a.id === a4.id)); ok('kapanan hesap ayrıntısı: kalemler ve tahsilat görünüyor'); }
+    assert.ok(!svc.closedAccounts({ room: '999' }).some(a => a.id === a4.id));
+    const cd = svc.closedAccountDays(); assert.ok(cd.some(d => d.day === ca.closed_day && d.n >= 1));
+    assert.ok(svc.closedAccounts({ day: ca.closed_day }).some(a => a.id === a4.id) && !svc.closedAccounts({ day: '2000-01-01' }).length);
+    ok('kapanan hesap ayrıntısı: kalemler, tahsilat ve gün gün liste'); }
   st = svc.voidTx({ id: st.tx[0].id }); st = svc.voidTx({ id: fin.id });
   a4 = st.accounts.find(a => a.id === a4.id);
   assert.strictEqual(a4.items.find(i => i.id === ac.id).kind, 'acik'); ok('tahsilat ve kapanış iptali klimayı yeniden açık yaptı');

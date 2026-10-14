@@ -54,16 +54,13 @@ async function refresh() {
 setInterval(() => { if (token && !document.hidden && tab === 'bugun') refresh(); }, 30000);
 
 $('caRoom').innerHTML = '<option value="">Tüm odalar</option>' + [1, 2, 3, 4, 5].map(k => `<optgroup label="${k}. kat">` + Array.from({ length: 8 }, (_, i) => `<option>${k * 100 + i + 1}</option>`).join('') + '</optgroup>').join('');
-async function renderClosed() {
-  try { $('caList').innerHTML = closedAccHTML(await call('closedAccounts', { room: $('caRoom').value })); } catch (e) { toast(e.message, true); }
-}
-$('caRoom').onchange = renderClosed;
+const closedAcc = mountClosedAcc({ call, toast });
 
 $('tabs').onclick = e => {
   const t = e.target.closest('[data-t]'); if (!t) return; tab = t.dataset.t;
   [...$('tabs').children].forEach(b => b.classList.toggle('on', b === t));
   document.querySelectorAll('[data-v]').forEach(v => v.classList.toggle('hidden', v.dataset.v !== tab));
-  if (tab === 'bugun') refresh(); if (tab === 'rapor') openReport(curPer); if (tab === 'gecmis') { hKey = null; renderHist(); } if (tab === 'excel') renderFiles(); if (tab === 'hesap') renderClosed();
+  if (tab === 'bugun') refresh(); if (tab === 'rapor') openReport(curPer); if (tab === 'gecmis') { hKey = null; renderHist(); } if (tab === 'excel') renderFiles(); if (tab === 'hesap') closedAcc.latest();
 };
 
 const cell = v => v ? `<td class="n ${v > 0 ? 'pos' : 'neg'}">${v > 0 ? '+' : ''}${fmt(v)}</td>` : '<td class="n dim">·</td>';

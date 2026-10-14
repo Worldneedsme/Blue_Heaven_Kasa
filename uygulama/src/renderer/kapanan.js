@@ -25,4 +25,38 @@
       <table><tbody>${pays || '<tr><td class="dim">Tahsilat kaydı yok</td></tr>'}</tbody></table></details>`;
   }
   window.closedAccHTML = list => list.length ? list.map(card).join('') : '<p style="color:var(--muted)">Kapanan hesap bulunamadı.</p>';
+
+  // Gün gün gezinme (◀ gün ▶). Oda seçilirse o odanın bütün günlerdeki kapanan hesapları listelenir.
+  const longDate = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); };
+  window.mountClosedAcc = ({ call, toast }) => {
+    const $ = id => document.getElementById(id);
+    let days = [], cur = null;
+    const sum = list => `${list.length} hesap · tahsil edilen ${fmt(list.reduce((s, a) => s + a.paidEur, 0))} €`;
+    async function refresh() {
+      try {
+        const room = $('caRoom').value;
+        $('caNav').classList.toggle('hidden', !!room);
+        if (room) {
+          const list = await call('closedAccounts', { room, limit: 500 });
+          $('caSum').textContent = `${room} numaralı oda, bütün günler — ${sum(list)}`;
+          $('caList').innerHTML = closedAccHTML(list); return;
+        }
+        days = await call('closedAccountDays');
+        if (!days.length) { $('caNav').classList.add('hidden'); $('caSum').textContent = ''; $('caList').innerHTML = '<p style="color:var(--muted)">Henüz kapanan hesap yok.</p>'; return; }
+        if (!cur || !days.some(d => d.day === cur)) cur = days[0].day;
+        const i = days.findIndex(d => d.day === cur);
+        $('caDay').innerHTML = days.map(d => `<option value="${d.day}"${d.day === cur ? ' selected' : ''}>${longDate(d.day)} — ${d.n} hesap</option>`).join('');
+        $('caOlder').disabled = i >= days.length - 1; $('caNewer').disabled = i <= 0;
+        const list = await call('closedAccounts', { day: cur, limit: 500 });
+        $('caSum').textContent = `Bu gün kapanan: ${sum(list)}`;
+        $('caList').innerHTML = closedAccHTML(list);
+      } catch (e) { toast(e.message, true); }
+    }
+    const step = d => { const i = days.findIndex(x => x.day === cur) + d; if (days[i]) { cur = days[i].day; refresh(); } };
+    $('caDay').onchange = () => { cur = $('caDay').value; refresh(); };
+    $('caOlder').onclick = () => step(1);
+    $('caNewer').onclick = () => step(-1);
+    $('caRoom').onchange = refresh;
+    return { refresh, latest: () => { cur = null; return refresh(); } };
+  };
 })();
