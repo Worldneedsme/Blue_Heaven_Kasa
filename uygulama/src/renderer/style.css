@@ -42,9 +42,18 @@ header{display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:#fff;b
 .save{height:44px;border:0;border-radius:10px;background:var(--blue);color:#fff;font-weight:600;padding:0 26px;font-size:16px}
 .link{border:0;background:none;color:var(--blue);padding:0;font-size:14px}
 .hint{font-size:13px;color:var(--muted);margin-top:10px;min-height:18px}
-.pending{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.pending span{background:var(--blue-soft);color:var(--blue);border-radius:999px;padding:6px 6px 6px 12px;font-size:14px;display:inline-flex;gap:6px;align-items:center}
-.pending button{border:0;background:#fff;border-radius:999px;width:22px;height:22px;line-height:1;color:var(--muted)}
+.pending{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.pending:empty{display:none}
+.prow{display:flex;align-items:center;gap:12px;background:var(--blue-soft);color:#124d73;border-radius:10px;padding:8px 10px 8px 14px;font-size:15px}
+.prow .no,.nextrow .no{font-weight:700;min-width:22px;color:var(--muted)}
+.prow .nm{flex:1}
+.prow .am{font-weight:700;min-width:90px;text-align:right}
+.prow .py{min-width:110px;font-size:14px}
+.prow button{border:0;background:#fff;border-radius:999px;width:26px;height:26px;line-height:1;color:var(--muted);font-size:16px}
+.prow.room{background:#fdf0dc;color:#9a5b06}
+.nextrow{display:flex;align-items:center;gap:12px;margin-top:10px;padding:6px 10px 6px 14px;border:2px dashed #c9dbe9;border-radius:10px}
+.nextrow input{flex:1;border:0;background:transparent;height:34px;font-size:15px;outline:none}
+.nextrow:hover{border-color:var(--blue)}
 .split{display:none;gap:10px;margin-top:12px;align-items:flex-end;flex-wrap:wrap}
 .split.on{display:flex}
 .split .f input{width:130px;text-align:right}
@@ -197,4 +206,15 @@ kbd{font-family:inherit;font-size:12px;border:1px solid var(--line);border-botto
 .openchk input{width:16px;height:16px}
 .opentag{display:inline-block;font-size:12px;font-weight:600;color:#9a5b06;background:#fdf0dc;border-radius:999px;padding:1px 8px}
 .saletotal .paybreak{font-size:14px;color:#124d73;margin-top:2px}
-.pending span.room{background:#fdf0dc;color:#9a5b06}
+
+#mSame{z-index:10}
+.sacts{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid #c9dbe9;background:var(--blue-soft);color:var(--blue);border-radius:999px;padding:6px 14px;font-size:14px;font-weight:600;cursor:pointer}
+.chip:hover{background:#d5e7f3}
+.chip.avans{background:#fff4e2;border-color:var(--orange);color:#9a5d00;margin-right:6px}
+.chip.avans:hover{background:#ffe9c4}
+.chip small{font-weight:400;opacity:.8;margin-left:4px}
+.saleRow{flex-wrap:nowrap}
+.saleRow .f.grow{min-width:140px}
+.saleRow .save{flex-shrink:0}
+@media (max-width:1150px){.saleRow{flex-wrap:wrap}}

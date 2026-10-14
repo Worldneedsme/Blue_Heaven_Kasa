@@ -62,20 +62,20 @@
     <!-- SATIŞ -->
     <div data-form="satis">
       <div class="pending" id="pending"></div>
-      <div class="row">
-        <div class="f"><label>Tarih</label><div class="ro dateRo"></div></div>
+      <div class="row saleRow">
         <div class="f"><label>Oda (isteğe bağlı)</label><select id="sRoom" style="width:130px"></select></div>
-        <div class="f grow"><label>Ürün / Hizmet</label>
+        <div class="f grow"><label id="sProdLbl">Ürün / Hizmet</label>
           <div class="combo"><input id="sProdQ" autocomplete="off" spellcheck="false" placeholder="Yazın veya seçin… (ör. dam)"><div class="combo-list hidden" id="sProdL"></div></div>
         </div>
         <div class="f"><label id="sQtyL">Adet</label><div style="display:flex;gap:8px;align-items:center"><input id="sQty" type="number" min="1" value="1" style="width:80px"><label class="openchk hidden" id="sOpenF" title="Kaç gece kalacağı belli değilse: odaya açık yazılır, geceler gün sonlarıyla sayılır"><input type="checkbox" id="sOpen"> Belli değil</label></div></div>
-        <div class="f hidden" id="sNoteF"><label id="sNoteL">Açıklama</label><input id="sNote" style="width:200px" placeholder="ne satıldı?"></div>
-        <div class="f hidden" id="sFreeF"><label>Fiyat</label><div style="display:flex;gap:6px"><input id="sFree" type="number" min="0" style="width:110px"><select id="sFreeCur"><option value="EUR">€</option><option value="TL">TL</option></select></div></div>
+        <div class="f hidden" id="sNoteF"><label id="sNoteL">Açıklama</label><input id="sNote" style="width:150px" placeholder="ne satıldı?"></div>
+        <div class="f hidden" id="sFreeF"><label>Fiyat</label><div style="display:flex;gap:6px"><input id="sFree" type="number" min="0" style="width:90px"><select id="sFreeCur"><option value="EUR">€</option><option value="TL">TL</option></select></div></div>
         <div class="f"><label>Tutar</label><div class="sum" id="sSum">—</div></div>
-        <div class="f"><label>Ödeme</label><select id="sPay" style="width:170px">
+        <div class="f"><label>Ödeme</label><select id="sPay" style="width:160px">
           <option value="EUR">Nakit €</option><option value="TL">Nakit TL</option><option value="KART">Kart</option><option value="SPLIT">Bölünmüş</option><option value="ODA">Oda hesabına yaz</option></select></div>
         <button class="save" id="sSave">Kaydet</button>
       </div>
+      <div class="nextrow hidden" id="sNext"><span class="no" id="sNextNo">2.</span><input id="sNextQ" autocomplete="off" spellcheck="false" placeholder="Başka ürün varsa buraya tıklayın veya yazın…"></div>
       <div class="saletotal hidden" id="sTotal"></div>
       <div class="split" id="split">
         <div class="f"><label>Nakit €</label><input id="pEUR" type="number" min="0"></div>
@@ -88,7 +88,7 @@
         <div class="f grow"><label>İndirim açıklaması (zorunlu)</label><input id="iNote" placeholder="örn. uzun konaklama, tanıdık misafir"></div>
         <button class="link" id="iCancel">İndirimi kaldır</button>
       </div>
-      <div class="hint"><button class="link" id="sAdd">+ Aynı misafire başka ürün ekle</button> · <button class="link" id="sDisc">Fiyatı değiştir / indirim</button> · <span>Kaydetmek için <kbd>Enter</kbd></span> <span id="sHint"></span></div>
+      <div class="hint sacts"><button class="chip" id="sDisc">🏷️ Fiyatı değiştir / indirim</button><button class="chip avans" id="sAvans">💶 Oda avansı <small>misafire kasadan para</small></button><span>Kaydetmek için <kbd>Enter</kbd></span> <span id="sHint"></span></div>
     </div>
 
     <!-- PARA BOZMA -->
@@ -143,13 +143,6 @@
 
     <!-- ODA HESAPLARI -->
     <div data-form="hesap" class="hidden">
-      <div class="row" style="margin-bottom:6px">
-        <div class="f"><label>Oda</label><select id="aRoom" style="width:130px"></select></div>
-        <div class="f grow"><label>Misafir adına ödeme (eczane, taksi, nakit avans…)</label><input id="aDesc" placeholder="örn. Eczane ilaç"></div>
-        <div class="f"><label>Tutar</label><div style="display:flex;gap:6px"><input id="aAmt" type="number" min="0" style="width:120px"><select id="aCur"><option value="TL">TL</option><option value="EUR">€</option></select></div></div>
-        <button class="save" id="aSave">Kasadan öde, hesaba yaz</button>
-      </div>
-      <div class="hint" style="margin-bottom:14px">Satışları odaya yazmak için Satış sekmesinde ödeme olarak “Oda hesabına yaz”ı seçin.</div>
       <div id="accList"></div>
     </div>
 
@@ -199,6 +192,16 @@
   <div class="f"><label>Açıklama</label><input id="fixDesc" placeholder="örn. Efes fazla yazılmış"></div>
   <div class="f"><label>Tutar</label><div style="display:flex;gap:6px"><input id="fixAmt" type="number" style="width:140px"><select id="fixCur"><option value="TL">TL</option><option value="EUR">€</option></select></div></div>
   <div style="display:flex;gap:8px;justify-content:flex-end"><button class="hbtn" data-close>Vazgeç</button><button class="hbtn main" id="fixOk">Kaydet</button></div>
+</div></div>
+
+<!-- Misafir adına kasadan ödeme -->
+<div class="modal" id="mAvans"><div class="box" style="width:min(480px,100%)">
+  <h3>Oda avansı — misafire kasadan para verildi</h3>
+  <span style="color:var(--muted);font-size:14px">Sadece kasadan <b>para çıktıysa</b> kullanın (eczane, taksi, nakit avans…). Para kasadan düşer, misafirin oda hesabına borç yazılır.<br>Ürün veya hizmeti odaya yazmak için burayı değil, ödeme olarak <b>“Oda hesabına yaz”</b>ı seçin.</span>
+  <div class="f"><label>Oda</label><select id="aRoom" style="width:130px"></select></div>
+  <div class="f"><label>Ne için?</label><input id="aDesc" placeholder="örn. Eczane ilaç"></div>
+  <div class="f"><label>Verilen tutar</label><div style="display:flex;gap:6px"><input id="aAmt" type="number" min="0" style="width:140px"><select id="aCur"><option value="TL">TL</option><option value="EUR">€</option></select></div></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button class="hbtn" data-close>Vazgeç</button><button class="hbtn main" id="aSave">Kasadan öde, hesaba yaz</button></div>
 </div></div>
 
 <!-- Açık kalemi durdur -->

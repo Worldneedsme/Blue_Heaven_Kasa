@@ -2,6 +2,9 @@
 /* Blue Heaven Kasa — arayüz. Tüm hesap ve kayıtlar çekirdekte (main süreç) yapılır; burası sadece gösterir ve iletir. */
 
 const $ = id => document.getElementById(id);
+// Geniş ekranda her şey orantılı büyür (tam ekranda küçük kalmasın)
+function fitScreen() { document.documentElement.style.zoom = Math.min(1.5, Math.max(1, window.innerWidth / 1230)).toFixed(3); }
+window.addEventListener('resize', fitScreen); fitScreen();
 const SYM = { TL: 'TL', EUR: '€', USD: '$', GBP: '£' };
 const CURS = ['TL', 'EUR', 'USD', 'GBP'];
 const fmt = n => (Math.round((n || 0) * 100) / 100).toLocaleString('tr-TR', { maximumFractionDigits: 2 });
@@ -158,11 +161,13 @@ $('tabs').onclick = e => {
 };
 
 /* ================= ÜRÜN ARAMA KUTUSU ================= */
-const priceText = p => p.price == null ? 'tutar girilir' : (p.currency === 'EUR' ? p.price + ' €' : fmt(p.price) + ' TL') + (p.unit !== 'adet' ? ' / ' + p.unit : '');
+// Ürün listesinin sonunda: seçilince oda avansı penceresini açar (satış değildir)
+const AVANS = { name: 'Oda avansı', category: 'Oda hesabı', avans: true };
+const priceText = p => p.avans ? 'kasadan para verilir' : p.price == null ? 'tutar girilir' : (p.currency === 'EUR' ? p.price + ' €' : fmt(p.price) + ' TL') + (p.unit !== 'adet' ? ' / ' + p.unit : '');
 let comboItems = [], comboAct = -1;
 function comboShow() {
   const q = norm($('sProdQ').value.trim());
-  const list = S.products.filter(p => !q || norm(p.name).includes(q) || norm(p.category).includes(q));
+  const list = [...S.products, AVANS].filter(p => !q || norm(p.name).includes(q) || norm(p.category).includes(q) || (p.avans && /^(eczane|taksi|para)/.test(q)));
   comboItems = list; comboAct = list.length ? 0 : -1;
   let html = '', lastCat = null;
   list.forEach((p, i) => {
@@ -180,6 +185,7 @@ function comboMove(d) {
   const a = $('sProdL').querySelector('.opt.act'); if (a) a.scrollIntoView({ block: 'nearest' });
 }
 function selectProd(p) {
+  if (p && p.avans) { const room = $('sRoom').value; selectProd(null); return openAvans(room); }
   selProd = p; $('sProdQ').value = p ? p.name : ''; comboHide();
   if (discOn) setDisc(false);
   $('sQty').value = 1; $('sFree').value = ''; $('sNote').value = ''; $('sOpen').checked = false;
@@ -246,7 +252,11 @@ function updSale() {
   const groups = payGroups(), gk = Object.keys(groups);
   if (multi) $('sTotal').innerHTML = `Toplam (${allLines().length} ürün): <b>${fmt(eur)} €</b> <span>= ${fmt(tl)} TL</span>` +
     (gk.length > 1 ? `<div class="paybreak">${gk.map(k => `${PAY_NAME[k]}: <b>${fmt(sumOf(groups[k]).eur)} €</b>`).join(' · ')}</div>` : '');
-  $('pending').innerHTML = pending.map((l, k) => `<span class="${l.pay === 'ODA' ? 'room' : ''}">${esc(lname(l))} · ${l.open ? 'açık' : l.cur === 'EUR' ? fmt(l.amt) + ' €' : fmt(l.amt) + ' TL'}${l.liste != null && l.amt !== l.liste ? ' (indirimli)' : ''} · <b>${PAY_NAME[l.pay]}</b><button data-k="${k}">×</button></span>`).join('');
+  $('pending').innerHTML = pending.map((l, k) => `<div class="prow${l.pay === 'ODA' ? ' room' : ''}"><span class="no">${k + 1}.</span><span class="nm">${esc(lname(l))}${l.liste != null && l.amt !== l.liste ? ' <small>(indirimli)</small>' : ''}</span><span class="am">${l.open ? 'açık' : l.cur === 'EUR' ? fmt(l.amt) + ' €' : fmt(l.amt) + ' TL'}</span><span class="py">${PAY_NAME[l.pay]}</span><button data-k="${k}" title="Bu ürünü çıkar">×</button></div>`).join('');
+  // Seçili ürün tamamsa altında bir sonraki ürün satırı kendiliğinden açılır
+  $('sProdLbl').textContent = pending.length ? `${pending.length + 1}. ürün` : 'Ürün / Hizmet';
+  $('sNext').classList.toggle('hidden', !(cl && (cl.amt || cl.open)));
+  $('sNextNo').textContent = `${pending.length + 2}.`;
   const splitLines = groups.SPLIT || [];
   $('split').classList.toggle('on', splitLines.length > 0);
   const stl = sumOf(splitLines).tl;
@@ -262,11 +272,16 @@ $('sOpen').addEventListener('change', () => { if ($('sOpen').checked) { $('sPay'
 $('sDisc').onclick = () => { if (!selProd || selProd.price == null) return toast('Önce sabit fiyatlı bir ürün seçin', true); setDisc(true); $('iPrice').focus(); };
 $('iCancel').onclick = () => setDisc(false);
 $('pending').onclick = e => { const k = e.target.dataset.k; if (k != null) { pending.splice(+k, 1); updSale(); } };
-$('sAdd').onclick = () => {
-  const c = curLine(); if (!c) return toast('Önce ürün seçin', true); if (!c.amt && !c.open) return toast('Tutar girin', true); if (discBad(c)) return toast('İndirim için açıklama yazın', true); if (noteBad(c)) return toast('“Diğer” için açıklama yazın', true);
+// Sonraki satıra geçince seçili ürün listeye alınır ve ürün kutusu boşalır
+function commitLine() {
+  const c = curLine(); if (!c) return false;
+  if (!c.amt && !c.open) return toast('Tutar girin', true), false;
+  if (discBad(c)) return toast('İndirim için açıklama yazın', true), false;
+  if (noteBad(c)) return toast('“Diğer” için açıklama yazın', true), false;
   c.pay = c.open ? 'ODA' : $('sPay').value;
-  pending.push(c); selectProd(null); $('sHint').textContent = 'Ürün eklendi — sıradakini seçin veya Kaydet’e basın.'; $('sProdQ').focus();
-};
+  pending.push(c); selectProd(null); return true;
+}
+$('sNextQ').addEventListener('focus', () => { commitLine(); $('sNextQ').blur(); $('sProdQ').focus(); comboShow(); });
 function resetSale() { pending = []; selectProd(null); $('sRoom').value = ''; $('sPay').value = 'EUR'; ['pEUR', 'pTL', 'pCARD'].forEach(i => { $(i).value = ''; }); $('sHint').textContent = ''; updSale(); }
 
 // Odaya yazarken: odada açık hesap varsa "aynı misafir mi" sorulur. Sonuç: {mode:'existing',id} | {mode:'new'} | null(vazgeçildi)
@@ -363,7 +378,7 @@ function renderAcc() {
   $('accCount').textContent = L.length || '';
   $('accList').innerHTML = L.length ? L.map(a => `<div class="acc"><div class="ah"><span class="room">${esc(a.room)}</span><span class="since">${shortDate(a.opened_day)}’den beri · ${a.items.filter(i => i.kind !== 'not').length} kalem</span>${a.left_unpaid ? '<span class="badge-left">Çıktı, ödenmedi</span>' : ''}<span class="tot">${a.items.some(i => i.paid_tx_id) ? '<small style="margin-right:6px">kalan</small>' : ''}${fmt(a.eurEq)} €<small>= ${fmt(a.tlEq)} TL</small></span></div>
     <table><tbody>${a.items.map(i => `<tr class="${i.paid_tx_id ? 'paid' : ''}"><td style="width:120px;color:var(--muted)">${shortDate(i.day).slice(0, 5)} ${timeOf(i.created_at)}</td><td>${esc(i.description)}${i.kind === 'acik' ? ` <span class="opentag">açık · ${shortDate(i.start_day).slice(0, 5)}’den beri ${i.nights} ${esc(i.unit)} × ${fmt(i.unit_price)} ${SYM[i.currency]}</span> <button class="link" data-stop="${i.id}">Durdur</button>` : ''}${i.paid_tx_id ? ' <span class="paidtag">✓ ödendi</span>' : ''}</td><td class="n">${i.kind === 'not' ? '' : fmt(i.amount) + ' ' + SYM[i.currency]}</td></tr>`).join('')}</tbody></table>
-    <div class="acts"><button class="hbtn main" data-close-acc="${a.id}">Tahsil et</button><button class="hbtn" data-fix="${a.id}">Düzeltme</button><button class="hbtn" data-move="${a.id}">Oda değiştir</button></div></div>`).join('')
+    <div class="acts"><button class="hbtn main" data-close-acc="${a.id}">Tahsil et</button><button class="hbtn" data-sale="${esc(a.room)}">➕ Satış ekle</button><button class="hbtn" data-fix="${a.id}">Düzeltme</button><button class="hbtn" data-move="${a.id}">Oda değiştir</button></div></div>`).join('')
     : '<p style="color:var(--muted)">Açık oda hesabı yok.</p>';
 }
 let accSel = null;
@@ -377,7 +392,8 @@ $('accList').addEventListener('click', e => {
 let stopSel = null;
 $('stopOk').onclick = async () => { const st = await act('stopOpenItem', { itemId: stopSel.id, nights: $('stopN').value }, 'Durduruldu, hesaba yazıldı'); if (st) $('mStop').classList.remove('on'); };
 $('accList').onclick = e => {
-  const d = e.target.dataset; const id = Number(d.closeAcc || d.fix || d.move); if (!id) return;
+  const d = e.target.dataset;
+  if (d.sale) return goSale(d.sale); const id = Number(d.closeAcc || d.fix || d.move); if (!id) return;
   accSel = S.accounts.find(a => a.id === id); if (!accSel) return;
   if (d.closeAcc) {
     $('accT').textContent = `${accSel.room} — tahsilat`;
@@ -431,13 +447,20 @@ $('moveOk').onclick = async () => {
   const st = await act('moveAccount', { accountId: accSel.id, room: $('moveRoom').value }, 'Hesap taşındı');
   if (st) $('mMove').classList.remove('on');
 };
+function goSale(room) {
+  $('tabs').querySelector('[data-t="satis"]').click();
+  $('sRoom').value = room; $('sPay').value = 'ODA'; updSale();
+  toast(`${room} için ürün seçin — ödeme “Oda hesabına yaz”`);
+}
+function openAvans(room) { $('aRoom').value = room || ''; $('aDesc').value = ''; $('aAmt').value = ''; $('aCur').value = 'TL'; $('mAvans').classList.add('on'); (room ? $('aDesc') : $('aRoom')).focus(); }
+$('sAvans').onclick = () => openAvans($('sRoom').value);
 $('aSave').onclick = async () => {
   const room = $('aRoom').value; if (!room) return toast('Oda seçin', true);
   if (!$('aDesc').value.trim()) return toast('Açıklama yazın', true);
   if (!(Number($('aAmt').value) > 0)) return toast('Tutar girin', true);
   const account = await chooseAccount(room); if (!account) return;
   const st = await act('addAvans', { room, desc: $('aDesc').value, currency: $('aCur').value, amount: $('aAmt').value, account }, `${room} hesabına yazıldı`);
-  if (st) { $('aDesc').value = ''; $('aAmt').value = ''; }
+  if (st) { $('aDesc').value = ''; $('aAmt').value = ''; $('mAvans').classList.remove('on'); }
 };
 
 /* ================= GEÇMİŞ GÜNLER ================= */
