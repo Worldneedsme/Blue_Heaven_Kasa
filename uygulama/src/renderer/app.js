@@ -90,6 +90,7 @@ function initStatic() {
   $('sRoom').innerHTML = roomOptions('— Yok —');
   $('aRoom').innerHTML = roomOptions('Seçin…');
   $('moveRoom').innerHTML = roomOptions('Seçin…');
+  $('caRoom').innerHTML = roomOptions('Tüm odalar');
   $('gCat').innerHTML = '<option value="">Seçin…</option>' + S.expenseCats.map(g => `<option>${esc(g)}</option>`).join('');
   dRate();
 }
@@ -462,6 +463,20 @@ $('aSave').onclick = async () => {
   const st = await act('addAvans', { room, desc: $('aDesc').value, currency: $('aCur').value, amount: $('aAmt').value, account }, `${room} hesabına yazıldı`);
   if (st) { $('aDesc').value = ''; $('aAmt').value = ''; $('mAvans').classList.remove('on'); }
 };
+
+// Açık / kapanan hesaplar arasında geçiş; kapananlar sadece görüntülenir
+let accMode = 'open';
+async function renderClosed() {
+  try { $('caList').innerHTML = closedAccHTML(await api('closedAccounts', { room: $('caRoom').value })); } catch (e) { toast(e.message, true); }
+}
+$('accSeg').onclick = e => {
+  const b = e.target.closest('[data-m]'); if (!b) return; accMode = b.dataset.m;
+  [...$('accSeg').children].forEach(x => x.classList.toggle('on', x === b));
+  const cl = accMode === 'closed';
+  ['caF', 'caHint', 'caList'].forEach(id => $(id).classList.toggle('hidden', !cl)); $('accList').classList.toggle('hidden', cl);
+  if (cl) renderClosed();
+};
+$('caRoom').onchange = renderClosed;
 
 /* ================= GEÇMİŞ GÜNLER ================= */
 let hKey = null, hKeys = [];

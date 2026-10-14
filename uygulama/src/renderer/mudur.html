@@ -53,6 +53,7 @@
       <button data-t="bugun" class="on">Bugün</button>
       <button data-t="rapor">📊 Rapor</button>
       <button data-t="gecmis">📅 Geçmiş Günler</button>
+      <button data-t="hesap">🛏 Kapanan Hesaplar</button>
       <button data-t="excel">📄 Excel Raporları</button>
     </div>
 
@@ -83,6 +84,11 @@
       <div id="hBody"></div>
     </div>
 
+    <div data-v="hesap" class="hidden">
+      <div class="accbar"><select id="caRoom" style="width:150px"></select><span class="hint" style="margin:0">Ayrıntı için hesaba tıklayın</span></div>
+      <div id="caList"></div>
+    </div>
+
     <div data-v="excel" class="hidden">
       <div class="hint" style="margin:0 0 12px">Her gün sonunda o günün raporu ve ayın raporu kendiliğinden oluşur. Dosyaya tıklayıp indirin, Excel’de açıp yazdırabilirsiniz.</div>
       <table class="files"><thead><tr><th>Dosya</th><th class="n">Oluşturma</th><th class="n">Boyut</th></tr></thead><tbody id="files"></tbody></table>
@@ -91,6 +97,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<script src="kapanan.js"></script>
 <script src="mudur.js"></script>
 </body>
 </html>

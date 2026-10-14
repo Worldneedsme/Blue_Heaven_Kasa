@@ -143,7 +143,10 @@
 
     <!-- ODA HESAPLARI -->
     <div data-form="hesap" class="hidden">
+      <div class="accbar"><div class="seg" id="accSeg"><button data-m="open" class="on">Açık hesaplar</button><button data-m="closed">Kapanan hesaplar</button></div>
+        <div class="f hidden" id="caF"><select id="caRoom" style="width:150px"></select></div><span class="hint hidden" id="caHint" style="margin:0">Ayrıntı için hesaba tıklayın</span></div>
       <div id="accList"></div>
+      <div id="caList" class="hidden"></div>
     </div>
 
     <!-- GEÇMİŞ -->
@@ -325,6 +328,7 @@
   <div style="display:flex;gap:8px;justify-content:flex-end"><button class="hbtn" id="cfNo">Vazgeç</button><button class="hbtn main" id="cfYes">Evet</button></div>
 </div></div>
 <div class="toast" id="toast"></div>
+<script src="kapanan.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

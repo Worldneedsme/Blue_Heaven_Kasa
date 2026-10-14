@@ -250,6 +250,19 @@ class Service {
     return this.s.lastId();
   }
 
+  // Kapanan oda hesapları (en yeni önce): bütün kalemler, tahsilatlar ve toplamlar. Sadece görüntüleme içindir.
+  closedAccounts({ room, limit } = {}) {
+    const r = String(room || '').trim(), lim = Math.min(500, Math.max(1, Number(limit) || 100));
+    const rows = this.s.all(`SELECT * FROM accounts WHERE status='closed'${r ? ' AND room=?' : ''} ORDER BY closed_at DESC, id DESC LIMIT ?`, r ? [r, lim] : [lim]);
+    return rows.map(a => {
+      const items = this.s.all('SELECT * FROM account_items WHERE account_id=? AND void=0 ORDER BY id', [a.id]);
+      const payments = this.s.all("SELECT * FROM transactions WHERE type='tahsilat' AND account_id=? AND void=0 ORDER BY id", [a.id])
+        .map(t => { const m = t.meta ? JSON.parse(t.meta) : {}; return { id: t.id, day: t.day, created_at: t.created_at, method: t.method, tl: t.tl, eur: t.eur, usd: t.usd, gbp: t.gbp, card_tl: t.card_tl, eurEq: m.eur || 0, tlEq: m.tl || 0, partial: !!m.partial }; });
+      const totals = { TL: 0, EUR: 0 };
+      for (const i of items) if (i.kind !== 'not') totals[i.currency] = r2(totals[i.currency] + i.amount);
+      return { ...a, items, payments, totals, paidEur: r2(payments.reduce((s, p) => s + p.eurEq, 0)) };
+    });
+  }
   openAccountsForRoom(room) {
     return this.s.all("SELECT * FROM accounts WHERE status='open' AND room=? ORDER BY id DESC", [room]).map(a => this.accountView(a));
   }

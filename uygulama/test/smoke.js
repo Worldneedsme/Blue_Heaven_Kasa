@@ -131,6 +131,10 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   assert.ok(!st.accounts.find(a => a.id === a4.id)); assert.strictEqual(st.tx[0].card_tl, (8 + 45) * svc.rates().EUR.satis);
   const fin = st.tx.find(t => t.description.startsWith('Klima (A/C) 5 gece'));
   assert.ok(fin, 'kapanış satışı kaydedilmeli'); ok('çıkışta gece sayısı 5 yapılıp tahsil edildi (45 €), satış kaydı oluştu');
+  { const ca = svc.closedAccounts({ room: a4.room }).find(a => a.id === a4.id);
+    assert.ok(ca && ca.payments.length === 1 && ca.payments[0].method === 'KART' && ca.paidEur === 8 + 45);
+    assert.ok(ca.items.some(i => i.description === 'Klima (A/C) 5 gece'));
+    assert.ok(!svc.closedAccounts({ room: '999' }).some(a => a.id === a4.id)); ok('kapanan hesap ayrıntısı: kalemler ve tahsilat görünüyor'); }
   st = svc.voidTx({ id: st.tx[0].id }); st = svc.voidTx({ id: fin.id });
   a4 = st.accounts.find(a => a.id === a4.id);
   assert.strictEqual(a4.items.find(i => i.id === ac.id).kind, 'acik'); ok('tahsilat ve kapanış iptali klimayı yeniden açık yaptı');
@@ -296,6 +300,7 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
     const mt = (await api('verifyPin', '5555')).data.token;
     const vs = await api('viewState', null, mt); assert.ok(vs.ok && vs.data.balances);
     assert.ok((await api('report', { period: 'month' }, mt)).ok);
+    assert.ok(Array.isArray((await api('closedAccounts', {}, mt)).data));
     assert.match((await api('addExpense', { category: 'Diğer', currency: 'TL', amount: 1 }, mt)).error, /yapılamaz/);
     assert.match((await api('resetAll', {}, mt)).error, /yapılamaz/);
     const fname = (await api('listReports', null, mt)).data.files[0].name;

@@ -4,7 +4,7 @@ const { UserError } = require('./service');
 
 const METHODS = [
   'getState', 'setup', 'addSale', 'addSaleBatch', 'addExchange', 'addExpense', 'addOwner', 'addAvans', 'correctAccount', 'moveAccount',
-  'closeAccount', 'payAccount', 'stopOpenItem', 'openAccountsForRoom', 'voidTx', 'closeDay', 'listClosedDays', 'getDayDetail', 'verifyPin', 'lock',
+  'closeAccount', 'payAccount', 'stopOpenItem', 'openAccountsForRoom', 'closedAccounts', 'voidTx', 'closeDay', 'listClosedDays', 'getDayDetail', 'verifyPin', 'lock',
   'report', 'getSettings', 'setRates', 'saveProduct', 'changePin', 'setBackupDir2', 'backupNow', 'restoreBackup', 'resetAll', 'exportDay', 'exportMonth', 'listReports', 'lanStatus', 'lanSetEnabled', 'lanNewCode', 'lanRemoveDevice',
 ];
 
