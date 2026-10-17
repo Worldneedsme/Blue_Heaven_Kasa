@@ -10,7 +10,7 @@
   // Tahsilatta kasaya ne girdi: "20 € + 400 TL kart"
   const paidParts = p => [p.eur ? fmt(p.eur) + ' €' : '', p.tl ? fmt(p.tl) + ' TL' : '', p.usd ? fmt(p.usd) + ' $' : '', p.gbp ? fmt(p.gbp) + ' £' : '', p.card_tl ? fmt(p.card_tl) + ' TL kart' : ''].filter(Boolean).join(' + ') || 'ödeme alınmadı';
 
-  function card(a) {
+  function card(a, opts) {
     const pno = {}; a.payments.forEach((p, k) => { pno[p.id] = k + 1; });
     const multi = a.payments.length > 1;
     const methods = [...new Set(a.payments.map(p => METHOD[p.method] || 'ödemesiz'))].join(' + ');
@@ -22,13 +22,15 @@
       <span class="tot">${fmt(a.paidEur)} €<small>${money(a.totals)}</small></span></summary>
       <table><tbody>${items}</tbody></table>
       <h4 class="ch">Tahsilat${multi ? 'lar' : ''}</h4>
-      <table><tbody>${pays || '<tr><td class="dim">Tahsilat kaydı yok</td></tr>'}</tbody></table></details>`;
+      <table><tbody>${pays || '<tr><td class="dim">Tahsilat kaydı yok</td></tr>'}</tbody></table>${opts.print ? `<div class="acts"><button class="hbtn" data-print-acc="${a.id}">🖨 Adisyon yazdır</button></div>` : ''}</details>`;
   }
-  window.closedAccHTML = list => list.length ? list.map(card).join('') : '<p style="color:var(--muted)">Kapanan hesap bulunamadı.</p>';
+  window.closedAccHTML = (list, opts = {}) => list.length ? list.map(a => card(a, opts)).join('') : '<p style="color:var(--muted)">Kapanan hesap bulunamadı.</p>';
 
   // Gün gün gezinme (◀ gün ▶). Oda seçilirse o odanın bütün günlerdeki kapanan hesapları listelenir.
   const longDate = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); };
-  window.mountClosedAcc = ({ call, toast }) => {
+  // print verilirse (resepsiyon) her hesapta "Adisyon yazdır" düğmesi çıkar; müdür sayfasında yok
+  window.mountClosedAcc = ({ call, toast, print }) => {
+    const html = list => closedAccHTML(list, { print: !!print });
     const $ = id => document.getElementById(id);
     let days = [], cur = null;
     const sum = list => `${list.length} hesap · tahsil edilen ${fmt(list.reduce((s, a) => s + a.paidEur, 0))} €`;
@@ -39,7 +41,7 @@
         if (room) {
           const list = await call('closedAccounts', { room, limit: 500 });
           $('caSum').textContent = `${room} numaralı oda, bütün günler — ${sum(list)}`;
-          $('caList').innerHTML = closedAccHTML(list); return;
+          $('caList').innerHTML = html(list); return;
         }
         days = await call('closedAccountDays');
         if (!days.length) { $('caNav').classList.add('hidden'); $('caSum').textContent = ''; $('caList').innerHTML = '<p style="color:var(--muted)">Henüz kapanan hesap yok.</p>'; return; }
@@ -49,7 +51,7 @@
         $('caOlder').disabled = i >= days.length - 1; $('caNewer').disabled = i <= 0;
         const list = await call('closedAccounts', { day: cur, limit: 500 });
         $('caSum').textContent = `Bu gün kapanan: ${sum(list)}`;
-        $('caList').innerHTML = closedAccHTML(list);
+        $('caList').innerHTML = html(list);
       } catch (e) { toast(e.message, true); }
     }
     const step = d => { const i = days.findIndex(x => x.day === cur) + d; if (days[i]) { cur = days[i].day; refresh(); } };
@@ -57,6 +59,7 @@
     $('caOlder').onclick = () => step(1);
     $('caNewer').onclick = () => step(-1);
     $('caRoom').onchange = refresh;
+    if (print) $('caList').addEventListener('click', e => { const id = e.target.dataset.printAcc; if (id) print(Number(id)); });
     return { refresh, latest: () => { cur = null; return refresh(); } };
   };
 })();

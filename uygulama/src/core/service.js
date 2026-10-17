@@ -2,6 +2,8 @@
 // İş kuralları. Arayüz sadece bu fonksiyonları çağırır; fiyat, kur ve bakiye hesapları burada yapılır.
 
 const crypto = require('crypto');
+const adisyon = require('./fis/adisyon');
+const yazici = require('./fis/yazici');
 const fs = require('fs');
 const path = require('path');
 
@@ -162,7 +164,7 @@ class Service {
       mv: {}, card: 0, method: 'ODA', accountId: a.id, meta: { eur: amountEur, tl, finalizes: item.id } });
     this.s.run(`INSERT INTO sale_items(tx_id,product_id,name,category,qty,unit,currency,unit_price,list_price,amount,amount_eur,discount_note)
       VALUES(?,?,?,?,?,?,?,?,NULL,?,?,NULL)`, [txId, item.product_id, p.name, p.category, n, item.unit, item.currency, item.unit_price, amount, amountEur]);
-    this.s.run("UPDATE account_items SET kind='satis', amount=?, description=?, tx_id=?, stop_day=? WHERE id=?", [amount, desc, txId, day.date, item.id]);
+    this.s.run("UPDATE account_items SET kind='satis', amount=?, description=?, tx_id=?, stop_day=?, qty=?, item_name=? WHERE id=?", [amount, desc, txId, day.date, n, p.name, item.id]);
   }
   stopOpenItem({ itemId, nights }) {
     const it = this.s.get("SELECT * FROM account_items WHERE id=? AND kind='acik' AND void=0", [itemId]); if (!it) fail('Açık kalem bulunamadı.');
@@ -319,7 +321,8 @@ class Service {
       const amountEur = r2(currency === 'EUR' ? amount : amount / rate);
       const qtxt = qty > 1 ? (p.unit === 'adet' ? ` ×${qty}` : ` ${qty} ${p.unit}`) : (p.unit !== 'adet' ? ` ${qty} ${p.unit}` : '');
       const desc = (freeNote ? (p.name === 'Diğer' ? freeNote : `${p.name}: ${freeNote}`) : p.name) + qtxt + (note ? ` [indirim: ${note}]` : '');
-      return { p, qty, currency, unitPrice, listPrice, note, amount, amountEur, desc };
+      const name = freeNote ? (p.name === 'Diğer' ? freeNote : `${p.name}: ${freeNote}`) : p.name;
+      return { p, qty, currency, unitPrice, listPrice, note, amount, amountEur, desc, name };
     });
     if (L.some(l => l.open) && !(payment && payment.method === 'ODA')) fail('Gece sayısı belli olmayan kalem sadece oda hesabına yazılabilir.');
     if (L.some(l => l.open) && !room) fail('Açık kalem için oda seçin.');
@@ -348,8 +351,8 @@ class Service {
           VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, [txId, l.p.id, l.p.name, l.p.category, l.qty, l.p.unit, l.currency, l.unitPrice, l.listPrice, l.amount, l.amountEur, l.note]);
         if (accountId) {
           const day = this.requireDay();
-          this.s.run('INSERT INTO account_items(account_id,day,created_at,kind,description,currency,amount,tx_id) VALUES(?,?,?,?,?,?,?,?)',
-            [accountId, day.date, nowStr(), 'satis', l.desc, l.currency, l.amount, txId]);
+          this.s.run('INSERT INTO account_items(account_id,day,created_at,kind,description,currency,amount,tx_id,qty,unit_price,item_name,product_id,unit) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            [accountId, day.date, nowStr(), 'satis', l.desc, l.currency, l.amount, txId, l.qty, l.unitPrice, l.name, l.p.id, l.p.unit]);
         }
       }
     };
@@ -552,6 +555,42 @@ class Service {
       .sort((a, b) => b.mtime - a.mtime);
     return { dir: this.reportsDir, files };
   }
+
+  // ---------- adisyon yazıcısı ----------
+  // Hedef: Windows yazıcı adı (USB) ya da ağ yazıcısının IP adresi. Ayar şifreli, yazdırma herkese açık.
+  printerTarget() { return this.setting('printer') || ''; }
+  printerStatus({ token }) {
+    this.requireToken(token);
+    return yazici.listPrinters().then(printers => ({ target: this.printerTarget(), printers }));
+  }
+  setPrinter({ token, target }) {
+    this.requireToken(token);
+    const t = String(target || '').trim();
+    if (t.length > 120) fail('Yazıcı adı çok uzun.');
+    this.s.tx(() => this.setSetting('printer', t));
+    return { target: t };
+  }
+  async printTest({ token }) {
+    this.requireToken(token);
+    const t = this.printerTarget();
+    await this.sendPrint(adisyon.testSlip(t));
+    return true;
+  }
+  // Oda hesabının adisyonu. Açık hesapta ödenmemiş kalemler; kapanmış hesapta hepsi ve tahsilatlar.
+  async printAccount({ accountId, copy }) {
+    const a = this.s.get('SELECT * FROM accounts WHERE id=?', [accountId]); if (!a) fail('Hesap bulunamadı.');
+    const view = a.status === 'closed' ? this.closedAccounts({ room: a.room, limit: 500 }).find(x => x.id === a.id) : this.accountView(a);
+    if (!view) fail('Hesap bulunamadı.');
+    if (a.status !== 'closed' && !view.items.some(i => !i.paid_tx_id && i.kind !== 'not')) fail('Hesapta yazdırılacak (ödenmemiş) kalem yok.');
+    const data = adisyon.roomBill({ account: view, rates: this.rates(), payments: view.payments || [], copy: !!copy });
+    await this.sendPrint(data);
+    return true;
+  }
+  // Yazıcı hataları (kapalı, kağıt bitti, seçilmemiş) kullanıcıya olduğu gibi gösterilir
+  async sendPrint(data) {
+    try { await yazici.send(this.printerTarget(), data, { outDir: this.printOutDir() }); } catch (e) { fail(e.message); }
+  }
+  printOutDir() { return this.reportsDir ? path.join(this.reportsDir, '..', 'BlueHeavenKasa-Fisler') : null; }
 
   // ---------- Müdür sayfası (yerel ağ) ----------
   // Sayfaya sadece eşleştirilmiş cihazlar girebilir. Eşleştirme kodu resepsiyon ekranında (Ayarlar) üretilir, 10 dakika geçerlidir.

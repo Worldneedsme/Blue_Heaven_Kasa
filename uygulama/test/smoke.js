@@ -157,6 +157,22 @@ const throws = (fn, re) => assert.throws(fn, e => re.test(e.message), `beklenen 
   assert.strictEqual(st.tx.length, nTx + 2); assert.strictEqual(st.balances.EUR, e0 + 8);
   assert.strictEqual(st.accounts.find(a => a.room === '307').eurEq, 27); ok('sepette karışık ödeme: damacana nakit (8 €), klima odaya (27 €), iki kayıt');
 
+  // Adisyon: yazıcı seçilmeden hata; seçilince fiş (resim olarak GS v 0) yazıcıya / geliştirmede dosyaya gider
+  { const a307 = svc.getState().accounts.find(a => a.room === '307');
+    svc.addSale({ room: '307', lines: [{ productId: P('Efes').id, qty: 2 }], payment: { method: 'ODA' }, account: { mode: 'existing', id: a307.id } });
+    const efes = svc.getState().accounts.find(a => a.id === a307.id).items.find(i => i.item_name === 'Efes');
+    assert.ok(efes && efes.qty === 2 && efes.unit_price > 0 && efes.description === 'Efes ×2');
+    await assert.rejects(() => svc.printAccount({ accountId: a307.id }), /Yazıcı seçilmemiş/);
+    const outDir = path.join(dir, 'BlueHeavenKasa-Fisler');
+    svc.setSetting('printer', 'KASA-YAZICI');
+    await svc.printAccount({ accountId: a307.id });
+    const files = fs.readdirSync(outDir); assert.strictEqual(files.length, 1);
+    await svc.printAccount({ accountId: a4.id }); assert.strictEqual(fs.readdirSync(outDir).length, 2, 'kapanmış hesabın adisyonu da basılmalı');
+    const buf = fs.readFileSync(path.join(outDir, files[0]));
+    assert.ok(buf.includes(Buffer.from([0x1d, 0x76, 0x30])) && buf.subarray(-4).equals(Buffer.from([0x1d, 0x56, 0x42, 0x00])));
+    svc.setSetting('printer', '');
+    ok('adisyon: adet/fiyat saklanıyor, yazıcısız hata, fiş resim olarak üretiliyor'); }
+
   // İptal sonrası boşalan oda hesabı listeden kalkar; açılışta takılı kalmış boş hesaplar temizlenir
   st = svc.addSale({ room: '101', lines: [{ productId: P('Damacana').id }], payment: { method: 'ODA' }, account: { mode: 'new' } });
   assert.ok(st.accounts.find(a => a.room === '101'));

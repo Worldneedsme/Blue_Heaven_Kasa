@@ -5,7 +5,7 @@ const { UserError } = require('./service');
 const METHODS = [
   'getState', 'setup', 'addSale', 'addSaleBatch', 'addExchange', 'addExpense', 'addOwner', 'addAvans', 'correctAccount', 'moveAccount',
   'closeAccount', 'payAccount', 'stopOpenItem', 'openAccountsForRoom', 'closedAccounts', 'closedAccountDays', 'voidTx', 'closeDay', 'listClosedDays', 'getDayDetail', 'verifyPin', 'lock',
-  'report', 'getSettings', 'setRates', 'saveProduct', 'changePin', 'setBackupDir2', 'backupNow', 'restoreBackup', 'resetAll', 'exportDay', 'exportMonth', 'listReports', 'lanStatus', 'lanSetEnabled', 'lanNewCode', 'lanRemoveDevice',
+  'report', 'getSettings', 'setRates', 'saveProduct', 'changePin', 'setBackupDir2', 'backupNow', 'restoreBackup', 'resetAll', 'exportDay', 'exportMonth', 'listReports', 'lanStatus', 'lanSetEnabled', 'lanNewCode', 'lanRemoveDevice', 'printerStatus', 'setPrinter', 'printTest', 'printAccount',
 ];
 
 function makeRouter(svc, log = console.error) {

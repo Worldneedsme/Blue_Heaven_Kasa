@@ -284,6 +284,17 @@
     <div class="tablewrap"><table><thead><tr><th>Ad</th><th>Kategori</th><th>Para birimi</th><th>Fiyat</th><th>Birim</th><th>Aktif</th><th></th></tr></thead><tbody id="setProds"></tbody></table></div>
   </div>
   <div class="panel">
+    <h3>Adisyon yazıcısı</h3>
+    <div class="hint" style="margin:0 0 10px">USB ile bağlı yazıcıda listeden yazıcının adını seçin. Ağ kablosuyla bağlıysa yazıcının IP adresini yazın (ör. 192.168.1.100 — yazıcının kendi test fişinde yazar).</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input id="prnT" list="prnList" autocomplete="off" placeholder="Yazıcı adı veya IP adresi" style="width:320px;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 12px">
+      <datalist id="prnList"></datalist>
+      <button class="hbtn main mini" id="prnSave">Kaydet</button>
+      <button class="hbtn mini" id="prnTest">🖨 Test yazdır</button>
+      <span id="prnInfo" style="font-size:14px;color:var(--muted)"></span>
+    </div>
+  </div>
+  <div class="panel">
     <h3>Program güncellemesi</h3>
     <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
       <span id="updStatus" style="font-size:14px"></span>

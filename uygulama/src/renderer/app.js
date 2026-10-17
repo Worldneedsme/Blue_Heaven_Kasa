@@ -379,7 +379,7 @@ function renderAcc() {
   $('accCount').textContent = L.length || '';
   $('accList').innerHTML = L.length ? L.map(a => `<div class="acc"><div class="ah"><span class="room">${esc(a.room)}</span><span class="since">${shortDate(a.opened_day)}’den beri · ${a.items.filter(i => i.kind !== 'not').length} kalem</span>${a.left_unpaid ? '<span class="badge-left">Çıktı, ödenmedi</span>' : ''}<span class="tot">${a.items.some(i => i.paid_tx_id) ? '<small style="margin-right:6px">kalan</small>' : ''}${fmt(a.eurEq)} €<small>= ${fmt(a.tlEq)} TL</small></span></div>
     <table><tbody>${a.items.map(i => `<tr class="${i.paid_tx_id ? 'paid' : ''}"><td style="width:120px;color:var(--muted)">${shortDate(i.day).slice(0, 5)} ${timeOf(i.created_at)}</td><td>${esc(i.description)}${i.kind === 'acik' ? ` <span class="opentag">açık · ${shortDate(i.start_day).slice(0, 5)}’den beri ${i.nights} ${esc(i.unit)} × ${fmt(i.unit_price)} ${SYM[i.currency]}</span> <button class="link" data-stop="${i.id}">Durdur</button>` : ''}${i.paid_tx_id ? ' <span class="paidtag">✓ ödendi</span>' : ''}</td><td class="n">${i.kind === 'not' ? '' : fmt(i.amount) + ' ' + SYM[i.currency]}</td></tr>`).join('')}</tbody></table>
-    <div class="acts"><button class="hbtn main" data-close-acc="${a.id}">Tahsil et</button><button class="hbtn" data-sale="${esc(a.room)}">➕ Satış ekle</button><button class="hbtn" data-fix="${a.id}">Düzeltme</button><button class="hbtn" data-move="${a.id}">Oda değiştir</button></div></div>`).join('')
+    <div class="acts"><button class="hbtn main" data-close-acc="${a.id}">Tahsil et</button><button class="hbtn" data-print="${a.id}">🖨 Adisyon</button><button class="hbtn" data-sale="${esc(a.room)}">➕ Satış ekle</button><button class="hbtn" data-fix="${a.id}">Düzeltme</button><button class="hbtn" data-move="${a.id}">Oda değiştir</button></div></div>`).join('')
     : '<p style="color:var(--muted)">Açık oda hesabı yok.</p>';
 }
 let accSel = null;
@@ -394,7 +394,8 @@ let stopSel = null;
 $('stopOk').onclick = async () => { const st = await act('stopOpenItem', { itemId: stopSel.id, nights: $('stopN').value }, 'Durduruldu, hesaba yazıldı'); if (st) $('mStop').classList.remove('on'); };
 $('accList').onclick = e => {
   const d = e.target.dataset;
-  if (d.sale) return goSale(d.sale); const id = Number(d.closeAcc || d.fix || d.move); if (!id) return;
+  if (d.sale) return goSale(d.sale);
+  if (d.print) return printAcc(Number(d.print)); const id = Number(d.closeAcc || d.fix || d.move); if (!id) return;
   accSel = S.accounts.find(a => a.id === id); if (!accSel) return;
   if (d.closeAcc) {
     $('accT').textContent = `${accSel.room} — tahsilat`;
@@ -466,7 +467,11 @@ $('aSave').onclick = async () => {
 
 // Açık / kapanan hesaplar arasında geçiş; kapananlar sadece görüntülenir
 let accMode = 'open';
-const closedAcc = mountClosedAcc({ call: api, toast });
+// Adisyon: hesabın ödenmemiş kalemleri (kapanmış hesapta tümü) kasadaki yazıcıdan basılır
+async function printAcc(id) {
+  try { await api('printAccount', { accountId: id }); toast('Adisyon yazıcıya gönderildi'); } catch (e) { toast(e.message, true); }
+}
+const closedAcc = mountClosedAcc({ call: api, toast, print: printAcc });
 $('accSeg').onclick = e => {
   const b = e.target.closest('[data-m]'); if (!b) return; accMode = b.dataset.m;
   [...$('accSeg').children].forEach(x => x.classList.toggle('on', x === b));
@@ -666,9 +671,22 @@ function renderLan() {
   $('lanBody').querySelectorAll('[data-rmdev]').forEach(b => { b.onclick = async () => { if (!await askConfirm('Cihaz kaldırılsın mı?', 'Bu cihaz tekrar girmek için yeniden eşleştirilmesi gerekecek.', 'Kaldır')) return; try { LAN = await api('lanRemoveDevice', { token, id: b.dataset.rmdev }); renderLan(); } catch (e) { toast(e.message, true); } }; });
 }
 
+async function loadPrinter() {
+  try {
+    const p = await api('printerStatus', { token });
+    $('prnT').value = p.target; $('prnList').innerHTML = p.printers.map(n => `<option value="${esc(n)}">`).join('');
+    $('prnInfo').textContent = p.printers.length ? `Bu bilgisayarda ${p.printers.length} yazıcı var — kutuya tıklayıp seçin` : '';
+  } catch (e) { $('prnInfo').textContent = e.message; }
+}
+$('prnSave').onclick = async () => { try { await api('setPrinter', { token, target: $('prnT').value }); toast('Yazıcı kaydedildi'); } catch (e) { toast(e.message, true); } };
+$('prnTest').onclick = async () => {
+  try { await api('setPrinter', { token, target: $('prnT').value }); await api('printTest', { token }); toast('Test fişi gönderildi'); } catch (e) { toast(e.message, true); }
+};
+
 function renderSettings() {
   refreshUpd(false);
   loadLan();
+  loadPrinter();
   $('verLbl').textContent = S && S.version ? 'Sürüm ' + S.version : '';
   $('setRates').innerHTML = ['EUR', 'USD', 'GBP'].map(c => `<tr><td><b>${SYM[c]}</b></td><td><input data-c="${c}" data-k="alis" type="number" step="0.01" value="${SET.rates[c].alis}"></td><td><input data-c="${c}" data-k="satis" type="number" step="0.01" value="${SET.rates[c].satis}"></td></tr>`).join('');
   $('setProds').innerHTML = SET.products.map(prodRow).join('') + prodRow({ category: SET.categories[0], currency: 'EUR', unit: 'adet', active: 1 });

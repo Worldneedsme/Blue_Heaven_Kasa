@@ -74,7 +74,8 @@ class Store {
     const cols = this.all('PRAGMA table_info(account_items)').map(c => c.name);
     if (!cols.includes('paid_tx_id')) this.db.run('ALTER TABLE account_items ADD COLUMN paid_tx_id INTEGER');
     // Açık (gece sayısı belli olmayan) kalemler için: birim fiyat, başlangıç/bitiş günü, ürün, başlatan işlem
-    for (const [c, t] of [['unit_price', 'REAL'], ['unit', 'TEXT'], ['start_day', 'TEXT'], ['stop_day', 'TEXT'], ['product_id', 'INTEGER'], ['open_tx_id', 'INTEGER']]) {
+    // Adisyonda Adet / Fiyat sütunları için: adet ve ürün adı (adet eki olmadan)
+    for (const [c, t] of [['unit_price', 'REAL'], ['unit', 'TEXT'], ['start_day', 'TEXT'], ['stop_day', 'TEXT'], ['product_id', 'INTEGER'], ['open_tx_id', 'INTEGER'], ['qty', 'REAL'], ['item_name', 'TEXT']]) {
       if (!cols.includes(c)) this.db.run(`ALTER TABLE account_items ADD COLUMN ${c} ${t}`);
     }
   }
